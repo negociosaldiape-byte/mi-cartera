@@ -80,18 +80,33 @@
 
     <!-- Proyección a 30 días -->
     <section class="proyeccion" id="proyeccion" hidden data-tour="proyeccion">
-      <div class="proy-info">
-        <p class="proy-label">Tu plata en 30 días <span class="proy-badge">análisis 🐺</span></p>
-        <h3 class="proy-valor"><span id="proyValor" data-count="0">—</span></h3>
-        <div class="proy-chips">
-          <span id="proyPct" class="chip-pct">—</span>
-          <span class="proy-rango">rango probable <strong id="proyRango">—</strong></span>
+      <div class="proy-cab">
+        <span class="proy-titulo">Tu plata en 30 días <span class="proy-badge">análisis 🐺</span></span>
+        <span class="proy-hoy" id="proyHoy"></span>
+      </div>
+      <div class="proy-probable">
+        <div class="proy-prob-izq">
+          <span class="proy-prob-label">🎯 Lo más probable</span>
+          <span class="proy-prob-sub">dentro de 30 días</span>
         </div>
-        <p class="proy-pie"><span id="proyFecha"></span> · estimación, no garantía</p>
+        <div class="proy-prob-der">
+          <span class="proy-prob-valor num" id="proyValor">—</span>
+          <span class="proy-prob-cambio" id="proyCambio"></span>
+        </div>
       </div>
-      <div class="proy-grafico">
-        <svg id="proyChart" viewBox="0 0 320 130" preserveAspectRatio="none" aria-label="Proyección de tu cartera a 30 días"></svg>
+      <div class="proy-escenarios">
+        <div class="proy-esc">
+          <span class="proy-esc-label">📈 Si va bien</span>
+          <span class="proy-esc-valor num" id="proyBienValor">—</span>
+          <span class="proy-esc-cambio" id="proyBienCambio"></span>
+        </div>
+        <div class="proy-esc">
+          <span class="proy-esc-label">📉 Si va mal</span>
+          <span class="proy-esc-valor num" id="proyMalValor">—</span>
+          <span class="proy-esc-cambio" id="proyMalCambio"></span>
+        </div>
       </div>
+      <p class="proy-pie"><span id="proyFecha"></span> · estimación, no garantía</p>
     </section>
 
     <!-- GRÁFICOS -->

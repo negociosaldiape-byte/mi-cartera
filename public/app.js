@@ -148,36 +148,20 @@ function pintarKPIs(r) {
 function pintarProyeccion(pr) {
   const sec = document.getElementById('proyeccion');
   if (!sec) return;
-  if (!pr || pr.esperado == null) { sec.hidden = true; return; }
+  if (!pr || pr.esperado == null || pr.valorHoy == null) { sec.hidden = true; return; }
   sec.hidden = false;
+  const hoy = pr.valorHoy;
+  const cambio = (v) => (v - hoy >= 0 ? 'ganas ' : 'pierdes ') + fmtDinero(Math.abs(v - hoy));
+  document.getElementById('proyHoy').innerHTML = 'Hoy: <strong>' + fmtDinero(hoy) + '</strong>';
   setNum(document.getElementById('proyValor'), 'proy', pr.esperado, fmtDinero);
-  const pct = document.getElementById('proyPct');
-  pct.textContent = fmtPct(pr.pctEsperado); pct.className = 'chip-pct ' + clase(pr.pctEsperado);
-  document.getElementById('proyRango').textContent = fmtDinero(pr.pesimista) + ' – ' + fmtDinero(pr.optimista);
+  const cb = document.getElementById('proyCambio');
+  cb.textContent = cambio(pr.esperado); cb.className = 'proy-prob-cambio ' + clase(pr.esperado - hoy);
+  document.getElementById('proyBienValor').textContent = fmtDinero(pr.optimista);
+  const bc = document.getElementById('proyBienCambio'); bc.textContent = cambio(pr.optimista); bc.className = 'proy-esc-cambio ' + clase(pr.optimista - hoy);
+  document.getElementById('proyMalValor').textContent = fmtDinero(pr.pesimista);
+  const mc = document.getElementById('proyMalCambio'); mc.textContent = cambio(pr.pesimista); mc.className = 'proy-esc-cambio ' + clase(pr.pesimista - hoy);
   const f = document.getElementById('proyFecha');
   f.textContent = pr.generado ? ('Actualizado ' + new Date(pr.generado).toLocaleDateString('es', { day: '2-digit', month: 'short' })) : '';
-  dibujarCono(pr);
-}
-function dibujarCono(pr) {
-  const svg = document.getElementById('proyChart'); if (!svg) return;
-  const W = 320, H = 130, padX = 10, padY = 14;
-  const base = pr.valorHoy != null ? pr.valorHoy : pr.esperado;
-  const vals = [base, pr.esperado, pr.pesimista, pr.optimista].filter((v) => typeof v === 'number');
-  let min = Math.min(...vals), max = Math.max(...vals);
-  const rg = (max - min) || (Math.abs(max) * 0.02) || 1;
-  min -= rg * 0.15; max += rg * 0.15;
-  const span = (max - min) || 1, x0 = padX, x1 = W - padX;
-  const y = (v) => (H - padY - ((v - min) / span) * (H - 2 * padY)).toFixed(1);
-  const subio = pr.esperado >= base, c = subio ? COL.green : COL.red;
-  const yb = y(base), ye = y(pr.esperado), yo = y(pr.optimista), yp = y(pr.pesimista);
-  svg.innerHTML = `<defs><linearGradient id="gProy" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${c}" stop-opacity="0.04"/><stop offset="1" stop-color="${c}" stop-opacity="0.26"/></linearGradient></defs>
-    <path d="M${x0},${yb} L${x1},${yo} L${x1},${yp} Z" fill="url(#gProy)"/>
-    <line x1="${x0}" y1="${yb}" x2="${x1}" y2="${yo}" stroke="${c}" stroke-width="1" stroke-opacity="0.45" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>
-    <line x1="${x0}" y1="${yb}" x2="${x1}" y2="${yp}" stroke="${c}" stroke-width="1" stroke-opacity="0.45" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>
-    <line id="proyLinea" x1="${x0}" y1="${yb}" x2="${x1}" y2="${ye}" stroke="${c}" stroke-width="2.6" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
-    <circle cx="${x0}" cy="${yb}" r="3.6" fill="${COL.muted}"/>
-    <circle cx="${x1}" cy="${ye}" r="4.6" fill="${c}" stroke="#0a1122" stroke-width="2"/>`;
-  if (!reducedMotion) { const l = svg.querySelector('#proyLinea'); try { const len = l.getTotalLength(); l.style.strokeDasharray = len; l.style.strokeDashoffset = len; requestAnimationFrame(() => { l.style.transition = 'stroke-dashoffset 1.1s cubic-bezier(0.16,1,0.3,1)'; l.style.strokeDashoffset = 0; }); } catch (e) {} }
 }
 
 // ---------- Gráfico de área (evolución) ----------
