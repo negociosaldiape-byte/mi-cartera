@@ -454,11 +454,21 @@ function dibujarGrafico() {
   p.forEach((pt, i) => { d += (i ? 'L' : 'M') + mg.x(i).toFixed(1) + ',' + mg.y(pt.c).toFixed(1) + ' '; });
   const area = d + 'L' + mg.x(p.length - 1).toFixed(1) + ',' + H + ' L' + mg.x(0).toFixed(1) + ',' + H + ' Z';
   const c = vals[vals.length - 1] >= vals[0] ? COL.green : COL.red;
+  // Eje Y: lineas guia + etiquetas de precio
+  const niveles = 4; let grid = '', ejeHTML = '';
+  for (let i = 0; i <= niveles; i++) {
+    const v = min + (max - min) * (i / niveles), yy = mg.y(v);
+    grid += `<line x1="0" y1="${yy.toFixed(1)}" x2="${W}" y2="${yy.toFixed(1)}" stroke="rgba(255,255,255,0.06)" stroke-width="1" vector-effect="non-scaling-stroke"/>`;
+    const abs = Math.abs(v), dec = abs < 10 ? 2 : (abs < 100 ? 1 : 0);
+    ejeHTML += `<span style="top:${((yy / H) * 100).toFixed(2)}%">$${v.toFixed(dec)}</span>`;
+  }
   mg.svg.innerHTML = `<defs><linearGradient id="mgGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c}" stop-opacity="0.35"/><stop offset="1" stop-color="${c}" stop-opacity="0"/></linearGradient></defs>
+    ${grid}
     <path d="${area}" fill="url(#mgGrad)"/>
     <path id="mgLinea" d="${d}" fill="none" stroke="${c}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
     <line id="mgCross" y1="0" y2="${H}" stroke="${COL.muted}" stroke-width="1" stroke-dasharray="4 4" opacity="0" vector-effect="non-scaling-stroke"/>
     <circle id="mgDot" r="4" fill="${c}" stroke="#0a1122" stroke-width="2" opacity="0"/>`;
+  const eje = document.getElementById('mgEjeY'); if (eje) eje.innerHTML = ejeHTML;
   if (!reducedMotion) { const l = mg.svg.querySelector('#mgLinea'); const len = l.getTotalLength(); l.style.strokeDasharray = len; l.style.strokeDashoffset = len; requestAnimationFrame(() => { l.style.transition = 'stroke-dashoffset 1s cubic-bezier(0.16,1,0.3,1)'; l.style.strokeDashoffset = 0; }); }
 }
 function hoverGrafico(e) {

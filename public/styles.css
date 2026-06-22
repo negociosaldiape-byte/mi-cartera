@@ -315,6 +315,8 @@ input::placeholder { color: var(--faint); }
 .mg-tooltip b { font-family: var(--fuente-display); }
 .mg-tooltip .mg-fecha { color: var(--muted); font-size: 0.72rem; }
 .mg-cargando { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: 0.9rem; }
+.mg-eje-y { position: absolute; inset: 0; pointer-events: none; }
+.mg-eje-y span { position: absolute; right: 4px; transform: translateY(-50%); font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; background: rgba(17, 26, 44, 0.66); padding: 0 4px; border-radius: 3px; }
 .mg-pie { text-align: center; color: var(--faint); font-size: 0.76rem; margin: 12px 0 0; }
 .fila-clic { cursor: pointer; }
 .ver-grafico { color: var(--faint); font-size: 0.72rem; }
