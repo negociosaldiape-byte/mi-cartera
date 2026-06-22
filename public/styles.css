@@ -319,8 +319,7 @@ input::placeholder { color: var(--faint); }
 .mg-eje-y span { position: absolute; right: 4px; transform: translateY(-50%); font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; background: rgba(17, 26, 44, 0.66); padding: 0 4px; border-radius: 3px; }
 .mg-pie { text-align: center; color: var(--faint); font-size: 0.76rem; margin: 12px 0 0; }
 .fila-clic { cursor: pointer; }
-.ver-grafico { color: var(--faint); font-size: 0.72rem; }
-tbody tr:hover .ver-grafico { color: var(--accent); }
+.ver-grafico { color: var(--accent); font-size: 0.72rem; font-weight: 600; }
 
 /* ---------- Reduced motion ---------- */
 @media (prefers-reduced-motion: reduce) {
