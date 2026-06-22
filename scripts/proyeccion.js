@@ -62,7 +62,7 @@ async function proyectarPortafolio(p, cache) {
   const abiertas = {};
   for (const pr of p.predicciones || []) if (pr.estado === 'abierta') abiertas[(pr.simbolo || '').toUpperCase()] = pr;
 
-  let valorHoy = efectivo(p), esperado = efectivo(p), varianza = 0;
+  let valorHoy = efectivo(p), esperado = efectivo(p), varianza = 0, corrSum = 0;
   for (const sim of Object.keys(pos)) {
     if (pos[sim] <= 1e-7) continue;
     if (cache[sim] === undefined) cache[sim] = await historia(sim);
@@ -74,7 +74,7 @@ async function proyectarPortafolio(p, cache) {
     const closes = h.closes;
     const rets = [];
     for (let i = 1; i < closes.length; i++) if (closes[i - 1] > 0) rets.push((closes[i] - closes[i - 1]) / closes[i - 1]);
-    const sigma30 = clamp(stdev(rets) * Math.sqrt(DIAS_BURSATILES), 0.01, 0.5);
+    const sigma30 = clamp(stdev(rets) * Math.sqrt(DIAS_BURSATILES), 0.01, 0.7);
     const n = closes.length;
     const ref = closes[Math.max(0, n - 1 - DIAS_BURSATILES)] || closes[0];
     const tend = ref > 0 ? (closes[n - 1] - ref) / ref : 0;
@@ -85,20 +85,25 @@ async function proyectarPortafolio(p, cache) {
       const prob = (lec.probabilidad != null) ? lec.probabilidad / 100 : 0.55;
       let conv = (prob - 0.5) * 2;
       if (lec.direccion === 'baja') conv = -conv;
-      mu = 0.005 + conv * Math.min(sigma30, 0.15);
+      mu = 0.006 + conv * Math.min(sigma30, 0.18);
     } else {
-      mu = 0.005 + clamp(tend * 0.2, -0.04, 0.04);
+      mu = 0.006 + clamp(tend * 0.2, -0.04, 0.04);
     }
     mu = clamp(mu, -0.18, 0.18);
 
     esperado += valor * (1 + mu);
     varianza += Math.pow(valor * sigma30, 2);
+    corrSum += valor * sigma30;
   }
-  const sigmaPort = Math.sqrt(varianza);
+  // Banda con correlación parcial: las acciones especulativas tienden a moverse juntas,
+  // así que mezclamos el caso "independiente" (diversificado) con el "todas a la vez".
+  // Resultado: el Conservador queda angosto y el Extremo, muy ancho (correcto).
+  const RHO = 0.35;
+  const sigmaPort = Math.sqrt(varianza * (1 - RHO) + corrSum * corrSum * RHO);
   return {
     valorHoy: +valorHoy.toFixed(2),
     esperado: +esperado.toFixed(2),
-    pesimista: +(esperado - sigmaPort).toFixed(2),
+    pesimista: +Math.max(0, esperado - sigmaPort).toFixed(2),
     optimista: +(esperado + sigmaPort).toFixed(2),
     pctEsperado: valorHoy > 0 ? +(((esperado - valorHoy) / valorHoy) * 100).toFixed(2) : 0,
   };

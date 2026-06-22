@@ -168,7 +168,7 @@ function pintarProyeccion(pr) {
 function construirArea(historico) {
   const svg = document.getElementById('graficoArea'), vacio = document.getElementById('areaVacio');
   const pts = (historico || []).filter((s) => typeof s.valorTotal === 'number');
-  if (pts.length < 2) { svg.innerHTML = ''; vacio.hidden = false; return; }
+  if (pts.length < 5) { svg.innerHTML = ''; vacio.hidden = false; return; }
   vacio.hidden = true;
   const W = 320, H = 120, pad = 8;
   const vals = pts.map((p) => p.valorTotal), min = Math.min(...vals), max = Math.max(...vals), rango = (max - min) || 1;
