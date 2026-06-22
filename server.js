@@ -6,6 +6,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { exec } = require('child_process');
 
 const RAIZ = __dirname;
@@ -321,21 +322,44 @@ const TIPOS = {
 
 // ---------------- Servidor ----------------
 const PANEL_PASSWORD = process.env.PANEL_PASSWORD || '';
-function autorizado(req, res) {
+const SESION_TOKEN = PANEL_PASSWORD ? crypto.createHash('sha256').update('micartera|' + PANEL_PASSWORD).digest('hex') : '';
+function tieneSesion(req) {
   if (!PANEL_PASSWORD) return true; // sin contrasena cuando corre local
-  const h = req.headers.authorization || '';
-  const esperado = 'Basic ' + Buffer.from('cartera:' + PANEL_PASSWORD).toString('base64');
-  if (h === esperado) return true;
-  res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="Mi Cartera"', 'Content-Type': 'text/plain; charset=utf-8' });
-  res.end('Necesitas la contrasena para entrar.');
-  return false;
+  const cookie = req.headers.cookie || '';
+  const m = cookie.match(/(?:^|;\s*)sesion=([^;]+)/);
+  return !!(m && m[1] === SESION_TOKEN);
 }
 
 const servidor = http.createServer(async (req, res) => {
   try {
-    if (!autorizado(req, res)) return;
     const u = new URL(req.url, 'http://localhost');
     const ruta = u.pathname;
+
+    // --- Login / Logout (accesibles sin sesion) ---
+    if (ruta === '/api/login' && req.method === 'POST') {
+      const b = await leerCuerpo(req);
+      if (PANEL_PASSWORD && b.password === PANEL_PASSWORD) {
+        const esHttps = (req.headers['x-forwarded-proto'] || '').indexOf('https') !== -1;
+        const seguro = esHttps ? '; Secure' : '';
+        res.writeHead(200, { 'Set-Cookie': `sesion=${SESION_TOKEN}; HttpOnly; Path=/; Max-Age=2592000; SameSite=Lax${seguro}`, 'Content-Type': 'application/json; charset=utf-8' });
+        return res.end(JSON.stringify({ ok: true }));
+      }
+      return enviarJSON(res, 401, { ok: false, error: 'Contrasena incorrecta' });
+    }
+    if (ruta === '/api/logout') {
+      res.writeHead(200, { 'Set-Cookie': 'sesion=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax', 'Content-Type': 'application/json; charset=utf-8' });
+      return res.end(JSON.stringify({ ok: true }));
+    }
+
+    // --- Puerta: si hay clave y no hay sesion -> mostrar login (o 401 en API) ---
+    if (!tieneSesion(req)) {
+      if (ruta.startsWith('/api/')) return enviarJSON(res, 401, { error: 'No autorizado' });
+      return fs.readFile(path.join(CARPETA_PUBLICA, 'login.html'), (err, contenido) => {
+        if (err) { res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end('Falta login.html'); }
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(contenido);
+      });
+    }
 
     if (ruta === '/api/estado' && req.method === 'GET') {
       return enviarJSON(res, 200, await construirEstado());
