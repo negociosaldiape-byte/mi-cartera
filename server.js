@@ -30,16 +30,44 @@ const UPSTASH_URL = process.env.UPSTASH_REDIS_REST_URL || '';
 const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || '';
 const USA_NUBE = !!(UPSTASH_URL && UPSTASH_TOKEN);
 const CLAVE_DATOS = 'cartera';
+const CAPITAL_DEFECTO = 10000;
 
+function portafolioVacio(id, nombre, riesgo) {
+  return { id, nombre, riesgo, capitalInicial: CAPITAL_DEFECTO, operaciones: [], predicciones: [], snapshots: [] };
+}
 function datosVacios() {
-  return { operaciones: [], predicciones: [], snapshots: [] };
+  return { version: 2, activo: 'agresivo', portafolios: [portafolioVacio('agresivo', 'Agresivo', 8.5)] };
+}
+function normalizaPortafolio(p, idx) {
+  p = p || {};
+  p.id = p.id || ('p' + (idx || 0));
+  p.nombre = p.nombre || p.id;
+  if (typeof p.riesgo !== 'number') p.riesgo = null;
+  if (typeof p.capitalInicial !== 'number') p.capitalInicial = CAPITAL_DEFECTO;
+  p.operaciones = p.operaciones || [];
+  p.predicciones = p.predicciones || [];
+  p.snapshots = p.snapshots || [];
+  return p;
 }
 function normaliza(d) {
   d = d || {};
-  d.operaciones = d.operaciones || [];
-  d.predicciones = d.predicciones || [];
-  d.snapshots = d.snapshots || [];
+  // Migracion del formato viejo {operaciones,...} -> multi-portafolio
+  if (!Array.isArray(d.portafolios)) {
+    if (d.operaciones || d.predicciones || d.snapshots) {
+      const viejo = { id: 'agresivo', nombre: 'Agresivo', riesgo: 8.5, capitalInicial: CAPITAL_DEFECTO, operaciones: d.operaciones || [], predicciones: d.predicciones || [], snapshots: d.snapshots || [] };
+      d = { version: 2, activo: 'agresivo', portafolios: [viejo] };
+    } else {
+      d = datosVacios();
+    }
+  }
+  d.version = 2;
+  d.portafolios = d.portafolios.map(normalizaPortafolio);
+  if (!d.portafolios.length) d.portafolios.push(portafolioVacio('agresivo', 'Agresivo', 8.5));
+  if (!d.activo || !d.portafolios.find((p) => p.id === d.activo)) d.activo = d.portafolios[0].id;
   return d;
+}
+function getPortafolio(d, id) {
+  return d.portafolios.find((p) => p.id === id) || d.portafolios.find((p) => p.id === d.activo) || d.portafolios[0];
 }
 
 let DATOS = datosVacios(); // copia en memoria (solo se usa en modo nube)
@@ -180,19 +208,31 @@ function calcularPosiciones(operaciones) {
   return { posiciones, realizado };
 }
 
-function registrarSnapshot(datos, valorActual) {
-  if (valorActual == null || isNaN(valorActual)) return;
+function registrarSnapshot(p, valorTotal) {
+  if (valorTotal == null || isNaN(valorTotal)) return;
   const hoy = hoyISO();
-  const existe = datos.snapshots.find((s) => s.fecha === hoy);
-  if (existe) existe.valorTotal = valorActual;
-  else datos.snapshots.push({ fecha: hoy, valorTotal: valorActual });
-  datos.snapshots.sort((a, b) => a.fecha.localeCompare(b.fecha));
+  const existe = p.snapshots.find((s) => s.fecha === hoy);
+  if (existe) existe.valorTotal = valorTotal;
+  else p.snapshots.push({ fecha: hoy, valorTotal });
+  p.snapshots.sort((a, b) => a.fecha.localeCompare(b.fecha));
 }
 
-function calcularGananciaMes(datos, valorActual) {
+// Efectivo libre = capital inicial - lo gastado en compras + lo recibido en ventas
+function calcularEfectivo(p) {
+  let cash = (typeof p.capitalInicial === 'number') ? p.capitalInicial : CAPITAL_DEFECTO;
+  for (const op of p.operaciones || []) {
+    const monto = (Number(op.cantidad) || 0) * (Number(op.precio) || 0);
+    const com = Number(op.comision) || 0;
+    if (op.tipo === 'venta') cash += monto - com;
+    else cash -= monto + com;
+  }
+  return cash;
+}
+
+function calcularGananciaMes(p, valorTotal) {
   const hoy = hoyISO();
   const inicioMes = hoy.slice(0, 8) + '01';
-  const anteriores = datos.snapshots.filter((s) => s.fecha < hoy);
+  const anteriores = (p.snapshots || []).filter((s) => s.fecha < hoy);
   if (!anteriores.length) return { disponible: false };
 
   const previosAlMes = anteriores.filter((s) => s.fecha < inicioMes);
@@ -200,49 +240,62 @@ function calcularGananciaMes(datos, valorActual) {
   if (previosAlMes.length) {
     base = previosAlMes[previosAlMes.length - 1].valorTotal;
   } else {
-    const delMes = datos.snapshots.filter((s) => s.fecha >= inicioMes && s.fecha < hoy);
+    const delMes = (p.snapshots || []).filter((s) => s.fecha >= inicioMes && s.fecha < hoy);
     if (!delMes.length) return { disponible: false };
     base = delMes[0].valorTotal;
   }
-  // Restamos el dinero NUEVO metido este mes (no es ganancia, es aporte).
-  let netoAportado = 0;
-  for (const op of datos.operaciones) {
-    if ((op.fecha || '') >= inicioMes) {
-      const bruto = (Number(op.cantidad) || 0) * (Number(op.precio) || 0);
-      netoAportado += op.tipo === 'venta' ? -bruto : (bruto + (Number(op.comision) || 0));
-    }
-  }
-  return { disponible: true, valor: valorActual - base - netoAportado };
+  // Capital fijo: el valor total ya incluye el efectivo, no hay aportes externos que descontar.
+  return { disponible: true, valor: valorTotal - base };
 }
 
 // ---------------- Evaluacion de predicciones ----------------
-async function evaluarPredicciones(datos) {
+async function evaluarPredicciones(pf) {
   const ahora = new Date();
-  for (const p of datos.predicciones) {
-    if (p.estado !== 'abierta') continue;
-    if (p.precioInicial == null) continue;
-    const creada = new Date(p.fechaCreacion + 'T00:00:00');
-    const vence = new Date(creada.getTime() + (Number(p.plazoDias) || 0) * 86400000);
+  for (const pr of pf.predicciones) {
+    if (pr.estado !== 'abierta') continue;
+    if (pr.precioInicial == null) continue;
+    const creada = new Date(pr.fechaCreacion + 'T00:00:00');
+    const vence = new Date(creada.getTime() + (Number(pr.plazoDias) || 0) * 86400000);
     if (ahora >= vence) {
-      const info = await obtenerPrecio(p.simbolo);
+      const info = await obtenerPrecio(pr.simbolo);
       if (info.precio == null) continue; // se intentara de nuevo luego
-      p.precioFinal = info.precio;
-      p.fechaEvaluacion = hoyISO();
-      const subio = info.precio > p.precioInicial;
-      const bajo = info.precio < p.precioInicial;
-      if (p.direccion === 'sube') p.estado = subio ? 'acertada' : 'fallada';
-      else p.estado = bajo ? 'acertada' : 'fallada';
+      pr.precioFinal = info.precio;
+      pr.fechaEvaluacion = hoyISO();
+      const subio = info.precio > pr.precioInicial;
+      const bajo = info.precio < pr.precioInicial;
+      if (pr.direccion === 'sube') pr.estado = subio ? 'acertada' : 'fallada';
+      else pr.estado = bajo ? 'acertada' : 'fallada';
     }
   }
 }
 
 // ---------------- Estado completo para el panel ----------------
-async function construirEstado() {
+// Valor de las posiciones de un portafolio (suma de precio*cantidad con precios en vivo)
+async function valorPosiciones(operaciones) {
+  const { posiciones } = calcularPosiciones(operaciones);
+  let total = 0, hay = false;
+  for (const pos of posiciones) {
+    const info = await obtenerPrecio(pos.simbolo);
+    if (info.precio != null) { total += info.precio * pos.cantidad; hay = true; }
+  }
+  return { total, hay };
+}
+// Resumen ligero de un portafolio para pintar su pestaña
+async function resumenPestana(p) {
+  const { total } = await valorPosiciones(p.operaciones);
+  const capital = (typeof p.capitalInicial === 'number') ? p.capitalInicial : CAPITAL_DEFECTO;
+  const valorTotal = calcularEfectivo(p) + total;
+  const gpTotal = valorTotal - capital;
+  return { id: p.id, nombre: p.nombre, riesgo: p.riesgo, capitalInicial: capital, valorTotal, gpTotal, gpTotalPct: capital ? (gpTotal / capital) * 100 : null };
+}
+
+async function construirEstado(idPortafolio) {
   const datos = leerDatos();
   const cfg = leerConfig();
-  const { posiciones, realizado } = calcularPosiciones(datos.operaciones);
+  const p = getPortafolio(datos, idPortafolio);
+  const { posiciones, realizado } = calcularPosiciones(p.operaciones);
 
-  let invertido = 0, valorActual = 0, cambioDia = 0;
+  let invertido = 0, valorPos = 0, cambioDia = 0;
   let hayValor = false;
   const filas = [];
   for (const pos of posiciones) {
@@ -255,7 +308,7 @@ async function construirEstado() {
     const cambioPos = (precio != null && info.cierreAnterior != null) ? (precio - info.cierreAnterior) * pos.cantidad : null;
 
     invertido += pos.costoTotal;
-    if (valor != null) { valorActual += valor; hayValor = true; }
+    if (valor != null) { valorPos += valor; hayValor = true; }
     if (cambioPos != null) cambioDia += cambioPos;
 
     filas.push({
@@ -271,30 +324,42 @@ async function construirEstado() {
     });
   }
 
-  const valorParaTotales = hayValor ? valorActual : null;
-  const gpTotal = valorParaTotales != null ? valorParaTotales - invertido : null;
-  const gpTotalPct = (gpTotal != null && invertido > 0) ? (gpTotal / invertido) * 100 : null;
+  const capital = (typeof p.capitalInicial === 'number') ? p.capitalInicial : CAPITAL_DEFECTO;
+  const efectivo = calcularEfectivo(p);
+  const valorTotal = efectivo + valorPos;
+  const gpTotal = valorTotal - capital;
+  const gpTotalPct = capital ? (gpTotal / capital) * 100 : null;
+  const gpPosiciones = hayValor ? (valorPos - invertido) : null;
 
-  if (valorParaTotales != null) registrarSnapshot(datos, valorParaTotales);
-  const gananciaMes = calcularGananciaMes(datos, valorParaTotales);
-  await evaluarPredicciones(datos);
+  registrarSnapshot(p, valorTotal);
+  const gananciaMes = calcularGananciaMes(p, valorTotal);
+  await evaluarPredicciones(p);
   guardarDatos(datos);
 
-  const predicciones = [...datos.predicciones].sort((a, b) => (b.fechaCreacion || '').localeCompare(a.fechaCreacion || ''));
-  const cerradas = predicciones.filter((p) => p.estado === 'acertada' || p.estado === 'fallada');
-  const aciertos = cerradas.filter((p) => p.estado === 'acertada').length;
+  const predicciones = [...p.predicciones].sort((a, b) => (b.fechaCreacion || '').localeCompare(a.fechaCreacion || ''));
+  const cerradas = predicciones.filter((q) => q.estado === 'acertada' || q.estado === 'fallada');
+  const aciertos = cerradas.filter((q) => q.estado === 'acertada').length;
   const tasa = cerradas.length > 0 ? (aciertos / cerradas.length) * 100 : null;
+
+  // Pestañas: resumen de cada portafolio (el activo ya lo tenemos calculado)
+  const pestanas = [];
+  for (const pf of datos.portafolios) {
+    if (pf.id === p.id) pestanas.push({ id: p.id, nombre: p.nombre, riesgo: p.riesgo, capitalInicial: capital, valorTotal, gpTotal, gpTotalPct });
+    else pestanas.push(await resumenPestana(pf));
+  }
 
   return {
     moneda: cfg.monedaBase || 'USD',
     proveedor: (cfg.proveedorPrecios === 'finnhub' && cfg.apiKeyFinnhub) ? 'Finnhub (tu llave)' : 'Yahoo (gratis, con retraso)',
     actualizado: new Date().toLocaleString('es'),
-    resumen: { invertido, valorActual: valorParaTotales, gpTotal, gpTotalPct, realizado, cambioDia, gananciaMes },
+    portafolio: p.id,
+    pestanas,
+    resumen: { capitalInicial: capital, invertido, valorPosiciones: valorPos, valorActual: valorPos, efectivo, valorTotal, gpTotal, gpTotalPct, gpPosiciones, realizado, cambioDia, gananciaMes },
     posiciones: filas,
-    operaciones: [...datos.operaciones].sort((a, b) => (b.fecha || '').localeCompare(a.fecha || '')),
+    operaciones: [...p.operaciones].sort((a, b) => (b.fecha || '').localeCompare(a.fecha || '')),
     predicciones,
-    marcador: { total: cerradas.length, aciertos, tasa, abiertas: predicciones.filter((p) => p.estado === 'abierta').length },
-    historico: datos.snapshots || [],
+    marcador: { total: cerradas.length, aciertos, tasa, abiertas: predicciones.filter((q) => q.estado === 'abierta').length },
+    historico: p.snapshots || [],
   };
 }
 
@@ -362,14 +427,15 @@ const servidor = http.createServer(async (req, res) => {
     }
 
     if (ruta === '/api/estado' && req.method === 'GET') {
-      return enviarJSON(res, 200, await construirEstado());
+      return enviarJSON(res, 200, await construirEstado(u.searchParams.get('portafolio')));
     }
 
     if (ruta === '/api/operaciones' && req.method === 'POST') {
       const b = await leerCuerpo(req);
       if (!b.simbolo || !b.cantidad || !b.precio) return enviarJSON(res, 400, { error: 'Faltan datos (simbolo, cantidad, precio).' });
       const datos = leerDatos();
-      datos.operaciones.push({
+      const pf = getPortafolio(datos, b.portafolio);
+      pf.operaciones.push({
         id: nuevoId(),
         simbolo: String(b.simbolo).toUpperCase().trim(),
         tipo: b.tipo === 'venta' ? 'venta' : 'compra',
@@ -386,7 +452,8 @@ const servidor = http.createServer(async (req, res) => {
     if (ruta === '/api/operaciones' && req.method === 'DELETE') {
       const id = u.searchParams.get('id');
       const datos = leerDatos();
-      datos.operaciones = datos.operaciones.filter((o) => o.id !== id);
+      const pf = getPortafolio(datos, u.searchParams.get('portafolio'));
+      pf.operaciones = pf.operaciones.filter((o) => o.id !== id);
       guardarDatos(datos);
       return enviarJSON(res, 200, { ok: true });
     }
@@ -397,7 +464,8 @@ const servidor = http.createServer(async (req, res) => {
       const simbolo = String(b.simbolo).toUpperCase().trim();
       const info = await obtenerPrecio(simbolo);
       const datos = leerDatos();
-      datos.predicciones.push({
+      const pf = getPortafolio(datos, b.portafolio);
+      pf.predicciones.push({
         id: nuevoId(),
         simbolo,
         direccion: b.direccion === 'baja' ? 'baja' : 'sube',
@@ -418,7 +486,8 @@ const servidor = http.createServer(async (req, res) => {
     if (ruta === '/api/predicciones' && req.method === 'DELETE') {
       const id = u.searchParams.get('id');
       const datos = leerDatos();
-      datos.predicciones = datos.predicciones.filter((p) => p.id !== id);
+      const pf = getPortafolio(datos, u.searchParams.get('portafolio'));
+      pf.predicciones = pf.predicciones.filter((q) => q.id !== id);
       guardarDatos(datos);
       return enviarJSON(res, 200, { ok: true });
     }

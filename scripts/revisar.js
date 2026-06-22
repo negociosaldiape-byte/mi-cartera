@@ -38,15 +38,21 @@ function posiciones(ops) {
 
 (async () => {
   if (!U || !T || !RESEND || !EMAIL) { console.error('Faltan variables de entorno'); process.exit(1); }
-  const cartera = JSON.parse((await upstash(['GET', 'cartera'])).result || '{}');
+  const blob = JSON.parse((await upstash(['GET', 'cartera'])).result || '{}');
+  const portafolios = Array.isArray(blob.portafolios) && blob.portafolios.length
+    ? blob.portafolios
+    : [{ id: 'agresivo', nombre: 'Agresivo', operaciones: blob.operaciones || [], predicciones: blob.predicciones || [] }];
   const alertas = JSON.parse((await upstash(['GET', 'alertas'])).result || '{}');
   const hoy = hoyISO();
   alertas.moves = alertas.moves || {}; alertas.moves[hoy] = alertas.moves[hoy] || [];
   alertas.preds = alertas.preds || [];
   const eventos = [];
 
-  // 1) Movimientos fuertes del dia
-  for (const s of posiciones(cartera.operaciones)) {
+  // Simbolos unicos en todos los portafolios
+  const simbolos = [...new Set(portafolios.flatMap((pf) => posiciones(pf.operaciones)))];
+
+  // 1) Movimientos fuertes del dia (un aviso por simbolo por dia)
+  for (const s of simbolos) {
     if (alertas.moves[hoy].includes(s)) continue;
     const p = await precio(s);
     if (!p || p.precio == null || !p.prev) continue;
@@ -56,16 +62,18 @@ function posiciones(ops) {
 
   // 2) Lecturas cuyo plazo se cumplio
   const ahora = Date.now();
-  for (const pr of cartera.predicciones || []) {
-    if (alertas.preds.includes(pr.id)) continue;
-    if (pr.precioInicial == null || !pr.fechaCreacion) continue;
-    const vence = new Date(pr.fechaCreacion + 'T00:00:00').getTime() + (Number(pr.plazoDias) || 0) * 86400000;
-    if (ahora < vence) continue;
-    const p = await precio(pr.simbolo);
-    if (!p || p.precio == null) continue;
-    const acerto = (pr.direccion === 'sube') ? (p.precio > pr.precioInicial) : (p.precio < pr.precioInicial);
-    eventos.push({ tipo: 'pred', s: pr.simbolo, dir: pr.direccion, acerto, ini: pr.precioInicial, fin: p.precio });
-    alertas.preds.push(pr.id);
+  for (const pf of portafolios) {
+    for (const pr of pf.predicciones || []) {
+      if (alertas.preds.includes(pr.id)) continue;
+      if (pr.precioInicial == null || !pr.fechaCreacion) continue;
+      const vence = new Date(pr.fechaCreacion + 'T00:00:00').getTime() + (Number(pr.plazoDias) || 0) * 86400000;
+      if (ahora < vence) continue;
+      const p = await precio(pr.simbolo);
+      if (!p || p.precio == null) continue;
+      const acerto = (pr.direccion === 'sube') ? (p.precio > pr.precioInicial) : (p.precio < pr.precioInicial);
+      eventos.push({ tipo: 'pred', s: pr.simbolo, dir: pr.direccion, acerto, ini: pr.precioInicial, fin: p.precio, port: pf.nombre || pf.id });
+      alertas.preds.push(pr.id);
+    }
   }
 
   if (eventos.length) {
@@ -76,7 +84,7 @@ function posiciones(ops) {
     }
     const preds = eventos.filter((e) => e.tipo === 'pred');
     if (preds.length) {
-      html += '<h3>Lecturas que se cumplieron</h3><ul>' + preds.map((e) => '<li><b>' + e.s + '</b> (' + (e.dir === 'sube' ? 'subir' : 'bajar') + '): ' + (e.acerto ? '✅ ACERTÓ' : '❌ falló') + ' — de $' + e.ini.toFixed(2) + ' a $' + e.fin.toFixed(2) + '</li>').join('') + '</ul>';
+      html += '<h3>Lecturas que se cumplieron</h3><ul>' + preds.map((e) => '<li><b>' + e.s + '</b> (' + (e.dir === 'sube' ? 'subir' : 'bajar') + '): ' + (e.acerto ? '✅ ACERTÓ' : '❌ falló') + ' — de $' + e.ini.toFixed(2) + ' a $' + e.fin.toFixed(2) + (e.port ? ' <i>[' + e.port + ']</i>' : '') + '</li>').join('') + '</ul>';
     }
     html += '<p style="color:#888;font-size:13px">Míralo en tu panel. Análisis, no asesoría financiera.</p></div>';
     await enviar('Novedades en tu cartera (' + eventos.length + ')', html);

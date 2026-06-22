@@ -8,6 +8,7 @@ const PALETA = ['#6c8cff', '#2fd98a', '#f5c451', '#ff5c6c', '#8a7bff', '#00c6a7'
 
 let MONEDA = 'USD';
 let ESTADO = null;
+let PORT_ACTIVO = null;
 let modoDemo = false;
 let ultimoAciertos = -1;
 const valoresPrevios = {};
@@ -48,7 +49,8 @@ function setNum(el, key, val, fmt) {
 // ---------- Carga / orquestación ----------
 async function cargar() {
   try {
-    const r = await fetch('/api/estado');
+    const q = PORT_ACTIVO ? ('?portafolio=' + encodeURIComponent(PORT_ACTIVO)) : '';
+    const r = await fetch('/api/estado' + q);
     const e = await r.json();
     ESTADO = e; modoDemo = false;
     document.getElementById('bannerDemo').hidden = true;
@@ -61,6 +63,8 @@ function render(e) { if (e) pintarTodo(e); }
 
 function pintarTodo(e) {
   MONEDA = e.moneda || 'USD';
+  if (e.portafolio) PORT_ACTIVO = e.portafolio;
+  pintarPestanas(e.pestanas, e.portafolio);
   document.getElementById('infoFuente').textContent = modoDemo ? 'Datos de ejemplo' : ('Precios: ' + e.proveedor + ' · ' + e.actualizado);
   pintarHeroe(e.resumen);
   pintarKPIs(e.resumen);
@@ -76,15 +80,50 @@ function pintarTodo(e) {
   }
 }
 
+// ---------- Pestañas de portafolios ----------
+function badgeRiesgo(riesgo) {
+  if (riesgo == null) return '';
+  const n = Number(riesgo);
+  const cls = n <= 3 ? 'r-bajo' : (n <= 6 ? 'r-medio' : 'r-alto');
+  return `<span class="pest-riesgo ${cls}">${Number.isInteger(n) ? n : n.toFixed(1)}/10</span>`;
+}
+function pintarPestanas(pestanas, activo) {
+  const cont = document.getElementById('pestanas');
+  if (!cont) return;
+  if (!pestanas || !pestanas.length) { cont.innerHTML = ''; cont.hidden = true; return; }
+  cont.hidden = false;
+  cont.innerHTML = pestanas.map((p) => {
+    const act = p.id === activo;
+    const chip = p.gpTotalPct == null ? '' : `<span class="pest-pyl ${clase(p.gpTotalPct)}">${fmtPct(p.gpTotalPct)}</span>`;
+    return `<button class="pestana${act ? ' activa' : ''}" data-port="${esc(p.id)}">
+      <span class="pest-top"><span class="pest-nombre">${esc(p.nombre)}</span>${badgeRiesgo(p.riesgo)}</span>
+      <span class="pest-bot"><span class="pest-valor">${fmtDinero(p.valorTotal)}</span>${chip}</span>
+    </button>`;
+  }).join('');
+}
+function cambiarPortafolio(id) {
+  if (modoDemo || !id || id === PORT_ACTIVO) return;
+  PORT_ACTIVO = id;
+  for (const k in valoresPrevios) delete valoresPrevios[k]; // count-up limpio
+  ultimoAciertos = -1; ocultosSim.clear(); ocultosPred.clear();
+  window.scrollTo({ top: 0, behavior: reducedMotion ? 'auto' : 'smooth' });
+  cargar();
+}
+document.getElementById('pestanas').addEventListener('click', (e) => { const b = e.target.closest('.pestana'); if (b) cambiarPortafolio(b.dataset.port); });
+
 // ---------- Héroe ----------
 function pintarHeroe(r) {
-  setNum(document.getElementById('heroeValor'), 'hero', r.valorActual, fmtDinero);
+  const total = r.valorTotal != null ? r.valorTotal : r.valorActual;
+  setNum(document.getElementById('heroeValor'), 'hero', total, fmtDinero);
   const pyl = document.getElementById('heroePyl');
   pyl.textContent = r.gpTotal == null ? '—' : ((r.gpTotal >= 0 ? '▲ ' : '▼ ') + fmtDinero(Math.abs(r.gpTotal)));
   pyl.className = 'chip-pyl ' + clase(r.gpTotal);
   const pct = document.getElementById('heroePylPct');
   pct.textContent = fmtPct(r.gpTotalPct); pct.className = 'chip-pct ' + clase(r.gpTotalPct);
-  document.getElementById('heroeSub').textContent = r.invertido ? ('sobre ' + fmtDinero(r.invertido) + ' invertidos') : '';
+  let sub = '';
+  if (r.cambioDia != null && Math.abs(r.cambioDia) > 0.005) sub = (r.cambioDia >= 0 ? '▲ ' : '▼ ') + fmtDinero(Math.abs(r.cambioDia)) + ' hoy · ';
+  sub += r.capitalInicial ? ('sobre ' + fmtDinero(r.capitalInicial) + ' de capital') : (r.invertido ? ('sobre ' + fmtDinero(r.invertido) + ' invertidos') : '');
+  document.getElementById('heroeSub').textContent = sub;
 }
 
 // ---------- KPIs ----------
@@ -94,14 +133,13 @@ function pintarKPIs(r) {
     ? '<div class="valor num" id="kpiMes"></div>'
     : '<div class="valor" style="font-size:1.02rem;color:var(--faint)">Se acumula desde hoy</div>';
   document.getElementById('kpis').innerHTML = `
-    <div class="kpi"><div class="etiqueta">Plata invertida <button class="info-i" data-info="Lo que has puesto de tu bolsillo en las posiciones que sigues teniendo.">i</button></div><div class="valor num" id="kpiInvertido"></div><div class="extra">en posiciones abiertas</div></div>
-    <div class="kpi"><div class="etiqueta">Valor hoy</div><div class="valor num" id="kpiValor"></div><div class="extra num ${clase(r.cambioDia)}" id="kpiDia"></div></div>
-    <div class="kpi"><div class="etiqueta">Ganancia / Pérdida</div><div class="valor num" id="kpiPyl"></div><div class="extra num ${clase(r.gpTotalPct)}">${fmtPct(r.gpTotalPct)}</div></div>
-    <div class="kpi"><div class="etiqueta">Este mes <button class="info-i" data-info="Cuánto ha cambiado tu cartera este mes, descontando el dinero nuevo que metiste. Se calcula con el historial, así que se llena con los días.">i</button></div>${mesHTML}<div class="extra">${r.realizado ? ('Realizado: ' + fmtDinero(r.realizado)) : ''}</div></div>`;
+    <div class="kpi"><div class="etiqueta">Plata invertida <button class="info-i" data-info="Lo que está puesto en acciones ahora mismo (a precio de compra).">i</button></div><div class="valor num" id="kpiInvertido"></div><div class="extra">en posiciones abiertas</div></div>
+    <div class="kpi"><div class="etiqueta">Efectivo libre <button class="info-i" data-info="Plata de tu capital que aún no has invertido. Lista para comprar.">i</button></div><div class="valor num" id="kpiEfectivo"></div><div class="extra">sin invertir</div></div>
+    <div class="kpi"><div class="etiqueta">Ganancia / Pérdida <button class="info-i" data-info="Tu valor total (acciones + efectivo) comparado con el capital inicial.">i</button></div><div class="valor num" id="kpiPyl"></div><div class="extra num ${clase(r.gpTotalPct)}">${fmtPct(r.gpTotalPct)}</div></div>
+    <div class="kpi"><div class="etiqueta">Este mes <button class="info-i" data-info="Cuánto ha cambiado tu valor total este mes. Se calcula con el historial, así que se llena con los días.">i</button></div>${mesHTML}<div class="extra">${r.realizado ? ('Realizado: ' + fmtDinero(r.realizado)) : ''}</div></div>`;
   setNum(document.getElementById('kpiInvertido'), 'inv', r.invertido, fmtDinero);
-  setNum(document.getElementById('kpiValor'), 'val', r.valorActual, fmtDinero);
+  setNum(document.getElementById('kpiEfectivo'), 'efe', r.efectivo, fmtDinero);
   const pyl = document.getElementById('kpiPyl'); setNum(pyl, 'pyl', r.gpTotal, fmtDinero); const cpyl = clase(r.gpTotal); if (cpyl) pyl.classList.add(cpyl);
-  const dia = document.getElementById('kpiDia'); dia.textContent = r.cambioDia != null ? (fmtDinero(r.cambioDia) + ' hoy') : '';
   if (mes.disponible) { const m = document.getElementById('kpiMes'); setNum(m, 'mes', mes.valor, fmtDinero); const cm = clase(mes.valor); if (cm) m.classList.add(cm); }
 }
 
@@ -271,14 +309,14 @@ function avisoDemo() { toast('Estás en modo demo. Toca "Borrar y empezar de cer
 document.getElementById('formOperacion').addEventListener('submit', async (e) => {
   e.preventDefault(); if (modoDemo) { avisoDemo(); return; }
   const f = e.target;
-  const cuerpo = { simbolo: f.simbolo.value, tipo: f.tipo.value, cantidad: f.cantidad.value, precio: f.precio.value, fecha: f.fecha.value, comision: f.comision.value, nota: f.nota.value };
+  const cuerpo = { simbolo: f.simbolo.value, tipo: f.tipo.value, cantidad: f.cantidad.value, precio: f.precio.value, fecha: f.fecha.value, comision: f.comision.value, nota: f.nota.value, portafolio: PORT_ACTIVO };
   const r = await fetch('/api/operaciones', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) });
   if (r.ok) { cerrarModal(); toast('Operación guardada ✓'); cargar(); } else { const er = await r.json().catch(() => ({})); toast(er.error || 'No se pudo guardar'); }
 });
 document.getElementById('formPrediccion').addEventListener('submit', async (e) => {
   e.preventDefault(); if (modoDemo) { avisoDemo(); return; }
   const f = e.target;
-  const cuerpo = { simbolo: f.simbolo.value, direccion: f.direccion.value, probabilidad: f.probabilidad.value, plazoDias: f.plazoDias.value, razon: f.razon.value };
+  const cuerpo = { simbolo: f.simbolo.value, direccion: f.direccion.value, probabilidad: f.probabilidad.value, plazoDias: f.plazoDias.value, razon: f.razon.value, portafolio: PORT_ACTIVO };
   const r = await fetch('/api/predicciones', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) });
   if (r.ok) { cerrarModal(); toast('Lectura guardada ✓'); cargar(); } else { const er = await r.json().catch(() => ({})); toast(er.error || 'No se pudo guardar'); }
 });
@@ -300,14 +338,15 @@ function borrarPosicion(sim) {
   ocultosSim.add(sim); render(ESTADO);
   toastUndo('Posición eliminada', () => { ocultosSim.delete(sim); render(ESTADO); }, async () => {
     const ids = (ESTADO.operaciones || []).filter((o) => o.simbolo === sim).map((o) => o.id);
-    for (const tid of ids) { try { await fetch('/api/operaciones?id=' + tid, { method: 'DELETE' }); } catch {} }
+    const qp = PORT_ACTIVO ? ('&portafolio=' + encodeURIComponent(PORT_ACTIVO)) : '';
+    for (const tid of ids) { try { await fetch('/api/operaciones?id=' + tid + qp, { method: 'DELETE' }); } catch {} }
     ocultosSim.delete(sim); cargar();
   });
 }
 function borrarPred(id) {
   ocultosPred.add(id); render(ESTADO);
   toastUndo('Lectura eliminada', () => { ocultosPred.delete(id); render(ESTADO); }, async () => {
-    try { await fetch('/api/predicciones?id=' + id, { method: 'DELETE' }); } catch {}
+    try { await fetch('/api/predicciones?id=' + id + (PORT_ACTIVO ? ('&portafolio=' + encodeURIComponent(PORT_ACTIVO)) : ''), { method: 'DELETE' }); } catch {}
     ocultosPred.delete(id); cargar();
   });
 }
@@ -377,7 +416,7 @@ window.addEventListener('resize', () => { if (!document.getElementById('tour').h
 // ---------- Modo demo ----------
 const ESTADO_DEMO = {
   moneda: 'USD', proveedor: 'datos de ejemplo', actualizado: '(demo)',
-  resumen: { invertido: 8400, valorActual: 10238, gpTotal: 1838, gpTotalPct: 21.88, realizado: 120, cambioDia: 64, gananciaMes: { disponible: true, valor: 540 } },
+  resumen: { capitalInicial: 10000, invertido: 8400, valorActual: 10238, valorPosiciones: 10238, efectivo: 1600, valorTotal: 11838, gpTotal: 1838, gpTotalPct: 18.38, realizado: 120, cambioDia: 64, gananciaMes: { disponible: true, valor: 540 } },
   posiciones: [
     { simbolo: 'AAPL', cantidad: 15, costoPromedio: 150, precioActual: 182, moneda: 'USD', valor: 2730, gp: 480, gpPct: 21.3, cambioDia: 12, spark: [170, 172, 168, 176, 182], error: false },
     { simbolo: 'NVDA', cantidad: 10, costoPromedio: 110, precioActual: 138, moneda: 'USD', valor: 1380, gp: 280, gpPct: 25.5, cambioDia: 20, spark: [120, 128, 131, 135, 138], error: false },
