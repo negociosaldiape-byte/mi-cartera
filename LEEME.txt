@@ -1,0 +1,72 @@
+============================================================
+   MI CARTERA — Cómo usarla
+============================================================
+
+▶ CÓMO ABRIRLA
+  1. Doble clic en "iniciar.bat".
+  2. Se abre una ventanita negra (el "motor"). NO LA CIERRES
+     mientras la uses: cerrarla = apagar el panel.
+  3. Tu navegador se abre solo. ¡Listo!
+
+▶ CÓMO CERRARLA
+  Cierra la ventanita negra.
+
+
+------------------------------------------------------------
+   LA PRIMERA VEZ
+------------------------------------------------------------
+La primera vez verás un TUTORIAL guiado con datos de ejemplo,
+que te muestra cada parte del panel. Cuando termines, toca
+"Borrar y empezar de cero" para tener tu cartera limpia.
+
+¿Quieres repetir el tutorial? Toca el botón "?" arriba a la
+derecha cuando quieras.
+
+
+------------------------------------------------------------
+   AGREGAR UNA OPERACIÓN (lo más fácil)
+------------------------------------------------------------
+1. Toca el botón azul "+" abajo a la derecha.
+2. Escribe el nombre (Apple, Tesla, BTC…) y elígelo de la lista.
+3. El panel te trae solo el precio de ahora. Pon la cantidad.
+4. Guardar. Verás tu ganancia/pérdida actualizarse en vivo.
+
+Atajos de teclado: "N" para agregar, "Esc" para cerrar.
+
+
+------------------------------------------------------------
+   QUÉ VES
+------------------------------------------------------------
+• Valor total de tu cartera y cuánto ganas/pierdes (en vivo).
+• El reparto de tu dinero en una dona.
+• El "marcador": mis lecturas (sube/baja) con su % de aciertos.
+• Tus posiciones, cada una con su mini-gráfica de 5 días.
+
+
+------------------------------------------------------------
+   TUS DATOS
+------------------------------------------------------------
+• Todo se guarda en "data.json", en esta misma carpeta.
+  Para respaldarlo, copia ese archivo donde quieras.
+• Nada sale de tu computadora, salvo la consulta de precios.
+
+
+------------------------------------------------------------
+   PRECIOS: GRATIS AHORA, MEJORABLE DESPUÉS
+------------------------------------------------------------
+De fábrica usa una fuente GRATIS (Yahoo). Para precios más
+rápidos y confiables (gratis igual):
+  1. Entra a:  https://finnhub.io/register
+  2. Copia tu "API key".
+  3. Abre "config.json" con el Bloc de notas.
+  4. Pega la llave en "apiKeyFinnhub" y cambia
+     "proveedorPrecios" de "yahoo" a "finnhub".
+  5. Guarda, cierra el panel y vuelve a abrirlo.
+
+
+------------------------------------------------------------
+   IMPORTANTE
+------------------------------------------------------------
+Las lecturas son ANÁLISIS, no garantías. Esto no es asesoría
+financiera: las decisiones con tu dinero son tuyas.
+============================================================

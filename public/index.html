@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mi Cartera</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236c8cff' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 17l5-5 4 4 8-9'/%3E%3Cpath d='M21 7v5h-5'/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- Fondo aurora cinematográfico -->
+  <div class="aurora" aria-hidden="true">
+    <span class="blob b1"></span>
+    <span class="blob b2"></span>
+    <span class="blob b3"></span>
+    <div class="grain"></div>
+  </div>
+  <canvas id="confeti" aria-hidden="true"></canvas>
+
+  <main class="app">
+    <!-- Barra superior -->
+    <header class="topbar" data-tour="bienvenida">
+      <div class="marca">
+        <span class="logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-5 4 4 8-9"/><path d="M21 7v5h-5"/></svg>
+        </span>
+        <div>
+          <h1>Mi Cartera</h1>
+          <p class="estado-vivo"><span class="punto"></span><span id="infoFuente">Conectando…</span></p>
+        </div>
+      </div>
+      <div class="acciones">
+        <button id="btnAyuda" class="icono-btn" title="Ver el tutorial" aria-label="Ver el tutorial">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12" y2="17"/></svg>
+        </button>
+        <button id="btnRefrescar" class="icono-btn" title="Refrescar precios" aria-label="Refrescar precios">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v5h-5"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Banner modo demo -->
+    <div id="bannerDemo" class="banner-demo" hidden>
+      <span>Estás viendo <strong>datos de ejemplo</strong> para explorar. Nada de esto es real.</span>
+      <button id="btnSalirDemo" class="btn-mini">Borrar y empezar de cero</button>
+    </div>
+
+    <!-- HÉROE -->
+    <section class="heroe" data-tour="heroe">
+      <div class="heroe-texto">
+        <p class="heroe-label">Valor total de tu cartera</p>
+        <h2 class="heroe-valor"><span id="heroeValor" data-count="0">—</span></h2>
+        <div class="heroe-pyl">
+          <span id="heroePyl" class="chip-pyl">—</span>
+          <span id="heroePylPct" class="chip-pct">—</span>
+          <span class="heroe-sub" id="heroeSub"></span>
+        </div>
+      </div>
+      <div class="heroe-grafico">
+        <svg id="graficoArea" viewBox="0 0 320 120" preserveAspectRatio="none" aria-label="Evolución del valor de tu cartera"></svg>
+        <p id="areaVacio" class="grafico-vacio" hidden>Tu evolución se irá dibujando con los días 📈</p>
+      </div>
+    </section>
+
+    <!-- KPIs -->
+    <section class="kpis" id="kpis"></section>
+
+    <!-- GRÁFICOS -->
+    <section class="graficos">
+      <div class="tarjeta grafico-card" data-tour="reparto">
+        <div class="card-head">
+          <h3>Reparto de tu dinero</h3>
+        </div>
+        <div class="donut-wrap">
+          <svg id="graficoDonut" viewBox="0 0 140 140" aria-label="Reparto de la cartera por activo"></svg>
+          <div id="leyendaDonut" class="leyenda"></div>
+        </div>
+        <p id="donutVacio" class="grafico-vacio" hidden>Registra una operación para ver el reparto.</p>
+      </div>
+
+      <div class="tarjeta grafico-card" data-tour="marcador">
+        <div class="card-head">
+          <h3>Marcador de lecturas</h3>
+          <button class="info-i" data-info="Cada lectura (sube/baja) se anota con fecha. Al cumplirse su plazo, el panel marca solo si acertó o falló. Esto es su porcentaje de aciertos.">i</button>
+        </div>
+        <div class="anillo-wrap">
+          <svg id="graficoAnillo" viewBox="0 0 140 140" aria-label="Porcentaje de aciertos"></svg>
+          <div class="anillo-chips" id="marcadorChips"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- POSICIONES -->
+    <section class="bloque" data-tour="posiciones">
+      <div class="card-head">
+        <h3>Mis posiciones</h3>
+      </div>
+      <div class="tabla-cont">
+        <table id="tablaPosiciones">
+          <thead>
+            <tr>
+              <th>Activo</th>
+              <th>5 días</th>
+              <th class="der">Cantidad</th>
+              <th class="der">Precio prom.</th>
+              <th class="der">Precio ahora</th>
+              <th class="der">Valor</th>
+              <th class="der">Ganancia / Pérdida</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="cuerpoPosiciones"></tbody>
+        </table>
+      </div>
+      <div class="vacio-estado" id="vacioPosiciones" hidden>
+        <div class="vacio-icono" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6" rx="1"/><rect x="12" y="8" width="3" height="10" rx="1"/><rect x="17" y="5" width="3" height="13" rx="1"/></svg>
+        </div>
+        <p class="vacio-titulo">Aún no tienes inversiones</p>
+        <p class="vacio-sub">Registra tu primera compra y mira crecer tu cartera.</p>
+        <button class="btn-principal" data-abrir-modal="operacion">Agregar mi primera operación</button>
+        <div style="margin-top:12px"><button id="btnVerDemo" class="btn-fantasma">Ver con datos de ejemplo</button></div>
+      </div>
+    </section>
+
+    <!-- LECTURAS -->
+    <section class="bloque" data-tour="lecturas">
+      <div class="card-head">
+        <h3>Lecturas de tu bróker 🐺</h3>
+      </div>
+      <ul id="listaPredicciones" class="lista-pred"></ul>
+      <div class="vacio-estado" id="vacioPredicciones" hidden>
+        <p class="vacio-titulo">Todavía no hay lecturas</p>
+        <p class="vacio-sub">Pídele una a tu bróker en el chat, o agrégala tú mismo.</p>
+        <button class="btn-fantasma" data-abrir-modal="prediccion">Agregar una lectura</button>
+      </div>
+    </section>
+
+    <footer class="pie">
+      Las lecturas son <strong>análisis, no garantías</strong>. Esto no es asesoría financiera: las decisiones con tu dinero son tuyas.
+    </footer>
+  </main>
+
+  <!-- Botón flotante -->
+  <button id="fab" class="fab" aria-label="Agregar" data-tour="fab">
+    <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+  </button>
+
+  <!-- MODAL -->
+  <div id="modal" class="modal-fondo" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitulo">
+      <div class="modal-head">
+        <div class="tabs">
+          <button class="tab activa" data-tab="operacion">Operación</button>
+          <button class="tab" data-tab="prediccion">Lectura</button>
+        </div>
+        <button id="cerrarModal" class="icono-btn" aria-label="Cerrar">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+        </button>
+      </div>
+
+      <!-- Form operación -->
+      <form id="formOperacion" class="panel-form" data-panel="operacion">
+        <div class="campo-busqueda">
+          <label>¿Qué compraste o vendiste?</label>
+          <input id="buscarSimbolo" name="simbolo" autocomplete="off" placeholder="Escribe Apple, Tesla, BTC…" required />
+          <ul id="resultadosBusqueda" class="autocompletar" hidden></ul>
+        </div>
+        <div class="seg-control" id="segTipo">
+          <button type="button" class="seg activa" data-tipo="compra">Compra</button>
+          <button type="button" class="seg" data-tipo="venta">Venta</button>
+        </div>
+        <input type="hidden" name="tipo" id="inputTipo" value="compra" />
+        <div class="grid-2">
+          <div class="campo">
+            <label>Cantidad</label>
+            <input name="cantidad" type="number" step="any" min="0" inputmode="decimal" placeholder="10" required />
+          </div>
+          <div class="campo">
+            <label>Precio por unidad <span id="hintPrecio" class="hint"></span></label>
+            <input name="precio" type="number" step="any" min="0" inputmode="decimal" placeholder="0.00" required />
+          </div>
+        </div>
+        <details class="mas-opciones">
+          <summary>Más opciones</summary>
+          <div class="grid-2">
+            <div class="campo">
+              <label>Fecha</label>
+              <input name="fecha" type="date" />
+            </div>
+            <div class="campo">
+              <label>Comisión</label>
+              <input name="comision" type="number" step="any" min="0" placeholder="0" />
+            </div>
+          </div>
+          <div class="campo">
+            <label>Nota</label>
+            <input name="nota" placeholder="Algo que quieras recordar" />
+          </div>
+        </details>
+        <button type="submit" class="btn-principal grande">Guardar operación</button>
+      </form>
+
+      <!-- Form predicción -->
+      <form id="formPrediccion" class="panel-form" data-panel="prediccion" hidden>
+        <div class="campo">
+          <label>Activo</label>
+          <input name="simbolo" autocomplete="off" placeholder="AAPL, TSLA…" required />
+        </div>
+        <div class="seg-control" id="segDir">
+          <button type="button" class="seg activa" data-dir="sube">Sube ▲</button>
+          <button type="button" class="seg" data-dir="baja">Baja ▼</button>
+        </div>
+        <input type="hidden" name="direccion" id="inputDir" value="sube" />
+        <div class="grid-2">
+          <div class="campo">
+            <label>Probabilidad %</label>
+            <input name="probabilidad" type="number" min="1" max="100" placeholder="65" />
+          </div>
+          <div class="campo">
+            <label>Plazo (días)</label>
+            <input name="plazoDias" type="number" min="1" placeholder="30" />
+          </div>
+        </div>
+        <div class="campo">
+          <label>Razón</label>
+          <input name="razon" placeholder="Por qué crees que pasará" />
+        </div>
+        <button type="submit" class="btn-principal grande">Guardar lectura</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Tour guiado -->
+  <div id="tour" class="tour" hidden>
+    <div id="tourHueco" class="tour-hueco"></div>
+    <div id="tourGlobo" class="tour-globo">
+      <p id="tourTitulo" class="tour-titulo"></p>
+      <p id="tourTexto" class="tour-texto"></p>
+      <div class="tour-pie">
+        <span id="tourPaso" class="tour-paso"></span>
+        <div class="tour-botones">
+          <button id="tourSaltar" class="btn-mini fantasma">Saltar</button>
+          <button id="tourAtras" class="btn-mini fantasma">Atrás</button>
+          <button id="tourSiguiente" class="btn-mini">Siguiente</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Popover info -->
+  <div id="popInfo" class="pop-info" hidden></div>
+
+  <!-- Toasts -->
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

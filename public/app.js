@@ -1,0 +1,409 @@
+// ============================================================
+//  app.js — Mi Cartera (corre en el navegador)
+// ============================================================
+
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const COL = { text: '#f1f5fb', muted: '#94a3bd', faint: '#5b6982', green: '#2fd98a', red: '#ff5c6c', accent: '#6c8cff', track: 'rgba(255,255,255,0.08)' };
+const PALETA = ['#6c8cff', '#2fd98a', '#f5c451', '#ff5c6c', '#8a7bff', '#00c6a7', '#ff9d5c', '#5bd1ff'];
+
+let MONEDA = 'USD';
+let ESTADO = null;
+let modoDemo = false;
+let ultimoAciertos = -1;
+const valoresPrevios = {};
+const ocultosSim = new Set();
+const ocultosPred = new Set();
+
+// ---------- Formato ----------
+function fmtDinero(n) { if (n == null || isNaN(n)) return '—'; try { return new Intl.NumberFormat('es', { style: 'currency', currency: MONEDA, maximumFractionDigits: 2 }).format(n); } catch { return Number(n).toFixed(2) + ' ' + MONEDA; } }
+function fmtNum(n) { if (n == null || isNaN(n)) return '—'; return Number(n).toLocaleString('es', { maximumFractionDigits: 4 }); }
+function fmtPct(n) { if (n == null || isNaN(n)) return '—'; return (n >= 0 ? '+' : '') + Number(n).toFixed(2) + '%'; }
+function clase(n) { if (n == null || isNaN(n)) return ''; return n >= 0 ? 'pos' : 'neg'; }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+function hoyISO() { const d = new Date(), z = (n) => String(n).padStart(2, '0'); return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()); }
+
+// ---------- Count-up + flash ----------
+function animar(el, from, to, fmt) {
+  const dur = 900, t0 = performance.now();
+  (function frame(t) {
+    const p = Math.min(1, (t - t0) / dur);
+    const e = 1 - Math.pow(2, -10 * p);
+    el.textContent = fmt(from + (to - from) * e);
+    if (p < 1) requestAnimationFrame(frame); else el.textContent = fmt(to);
+  })(t0);
+}
+function setNum(el, key, val, fmt) {
+  if (!el) return;
+  const tenia = key in valoresPrevios;
+  const prev = tenia ? valoresPrevios[key] : 0;
+  if (val == null) { el.textContent = '—'; valoresPrevios[key] = null; return; }
+  if (reducedMotion) el.textContent = fmt(val); else animar(el, (prev == null ? 0 : prev), val, fmt);
+  if (tenia && prev != null && Math.abs(val - prev) > 0.005) {
+    el.classList.remove('flash-up', 'flash-down'); void el.offsetWidth;
+    el.classList.add(val > prev ? 'flash-up' : 'flash-down');
+  }
+  valoresPrevios[key] = val;
+}
+
+// ---------- Carga / orquestación ----------
+async function cargar() {
+  try {
+    const r = await fetch('/api/estado');
+    const e = await r.json();
+    ESTADO = e; modoDemo = false;
+    document.getElementById('bannerDemo').hidden = true;
+    pintarTodo(e);
+  } catch (err) {
+    document.getElementById('infoFuente').textContent = 'No se pudo conectar con el motor. ¿La ventana negra sigue abierta?';
+  }
+}
+function render(e) { if (e) pintarTodo(e); }
+
+function pintarTodo(e) {
+  MONEDA = e.moneda || 'USD';
+  document.getElementById('infoFuente').textContent = modoDemo ? 'Datos de ejemplo' : ('Precios: ' + e.proveedor + ' · ' + e.actualizado);
+  pintarHeroe(e.resumen);
+  pintarKPIs(e.resumen);
+  construirArea(e.historico);
+  construirDonut(e.posiciones);
+  construirAnillo(e.marcador);
+  pintarPosiciones(e.posiciones);
+  pintarPredicciones(e.predicciones, e.marcador);
+  // Confeti al sumar un acierto (solo con datos reales)
+  if (!modoDemo && e.marcador) {
+    if (ultimoAciertos >= 0 && e.marcador.aciertos > ultimoAciertos) confeti();
+    ultimoAciertos = e.marcador.aciertos;
+  }
+}
+
+// ---------- Héroe ----------
+function pintarHeroe(r) {
+  setNum(document.getElementById('heroeValor'), 'hero', r.valorActual, fmtDinero);
+  const pyl = document.getElementById('heroePyl');
+  pyl.textContent = r.gpTotal == null ? '—' : ((r.gpTotal >= 0 ? '▲ ' : '▼ ') + fmtDinero(Math.abs(r.gpTotal)));
+  pyl.className = 'chip-pyl ' + clase(r.gpTotal);
+  const pct = document.getElementById('heroePylPct');
+  pct.textContent = fmtPct(r.gpTotalPct); pct.className = 'chip-pct ' + clase(r.gpTotalPct);
+  document.getElementById('heroeSub').textContent = r.invertido ? ('sobre ' + fmtDinero(r.invertido) + ' invertidos') : '';
+}
+
+// ---------- KPIs ----------
+function pintarKPIs(r) {
+  const mes = r.gananciaMes || {};
+  const mesHTML = mes.disponible
+    ? '<div class="valor num" id="kpiMes"></div>'
+    : '<div class="valor" style="font-size:1.02rem;color:var(--faint)">Se acumula desde hoy</div>';
+  document.getElementById('kpis').innerHTML = `
+    <div class="kpi"><div class="etiqueta">Plata invertida <button class="info-i" data-info="Lo que has puesto de tu bolsillo en las posiciones que sigues teniendo.">i</button></div><div class="valor num" id="kpiInvertido"></div><div class="extra">en posiciones abiertas</div></div>
+    <div class="kpi"><div class="etiqueta">Valor hoy</div><div class="valor num" id="kpiValor"></div><div class="extra num ${clase(r.cambioDia)}" id="kpiDia"></div></div>
+    <div class="kpi"><div class="etiqueta">Ganancia / Pérdida</div><div class="valor num" id="kpiPyl"></div><div class="extra num ${clase(r.gpTotalPct)}">${fmtPct(r.gpTotalPct)}</div></div>
+    <div class="kpi"><div class="etiqueta">Este mes <button class="info-i" data-info="Cuánto ha cambiado tu cartera este mes, descontando el dinero nuevo que metiste. Se calcula con el historial, así que se llena con los días.">i</button></div>${mesHTML}<div class="extra">${r.realizado ? ('Realizado: ' + fmtDinero(r.realizado)) : ''}</div></div>`;
+  setNum(document.getElementById('kpiInvertido'), 'inv', r.invertido, fmtDinero);
+  setNum(document.getElementById('kpiValor'), 'val', r.valorActual, fmtDinero);
+  const pyl = document.getElementById('kpiPyl'); setNum(pyl, 'pyl', r.gpTotal, fmtDinero); const cpyl = clase(r.gpTotal); if (cpyl) pyl.classList.add(cpyl);
+  const dia = document.getElementById('kpiDia'); dia.textContent = r.cambioDia != null ? (fmtDinero(r.cambioDia) + ' hoy') : '';
+  if (mes.disponible) { const m = document.getElementById('kpiMes'); setNum(m, 'mes', mes.valor, fmtDinero); const cm = clase(mes.valor); if (cm) m.classList.add(cm); }
+}
+
+// ---------- Gráfico de área (evolución) ----------
+function construirArea(historico) {
+  const svg = document.getElementById('graficoArea'), vacio = document.getElementById('areaVacio');
+  const pts = (historico || []).filter((s) => typeof s.valorTotal === 'number');
+  if (pts.length < 2) { svg.innerHTML = ''; vacio.hidden = false; return; }
+  vacio.hidden = true;
+  const W = 320, H = 120, pad = 8;
+  const vals = pts.map((p) => p.valorTotal), min = Math.min(...vals), max = Math.max(...vals), rango = (max - min) || 1;
+  const x = (i) => pad + (i / (pts.length - 1)) * (W - 2 * pad);
+  const y = (v) => H - pad - ((v - min) / rango) * (H - 2 * pad);
+  let d = ''; pts.forEach((p, i) => { d += (i ? 'L' : 'M') + x(i).toFixed(1) + ',' + y(p.valorTotal).toFixed(1) + ' '; });
+  const area = d + 'L' + x(pts.length - 1).toFixed(1) + ',' + H + ' L' + x(0).toFixed(1) + ',' + H + ' Z';
+  const c = vals[vals.length - 1] >= vals[0] ? COL.green : COL.red;
+  svg.innerHTML = `<defs><linearGradient id="gArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c}" stop-opacity="0.35"/><stop offset="1" stop-color="${c}" stop-opacity="0"/></linearGradient></defs>
+    <path d="${area}" fill="url(#gArea)"/>
+    <path id="areaLinea" d="${d}" fill="none" stroke="${c}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>`;
+  const linea = svg.querySelector('#areaLinea');
+  if (!reducedMotion) { const len = linea.getTotalLength(); linea.style.strokeDasharray = len; linea.style.strokeDashoffset = len; requestAnimationFrame(() => { linea.style.transition = 'stroke-dashoffset 1.4s cubic-bezier(0.16,1,0.3,1)'; linea.style.strokeDashoffset = 0; }); }
+}
+
+// ---------- Donut (reparto) ----------
+function construirDonut(posiciones) {
+  const svg = document.getElementById('graficoDonut'), vacio = document.getElementById('donutVacio'), ley = document.getElementById('leyendaDonut');
+  const con = (posiciones || []).filter((p) => !ocultosSim.has(p.simbolo) && p.valor != null && p.valor > 0).sort((a, b) => b.valor - a.valor);
+  if (!con.length) { svg.innerHTML = ''; ley.innerHTML = ''; vacio.hidden = false; return; }
+  vacio.hidden = true;
+  const total = con.reduce((s, p) => s + p.valor, 0);
+  const cx = 70, cy = 70, r = 52, C = 2 * Math.PI * r;
+  let acc = 0, circles = '', leyenda = '';
+  con.forEach((p, i) => {
+    const frac = p.valor / total, color = PALETA[i % PALETA.length], dash = frac * C;
+    circles += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="16" stroke-dasharray="${dash.toFixed(2)} ${(C - dash).toFixed(2)}" stroke-dashoffset="${(-acc * C).toFixed(2)}" transform="rotate(-90 ${cx} ${cy})"/>`;
+    leyenda += `<div class="leyenda-fila"><span class="leyenda-punto" style="background:${color}"></span><span class="leyenda-nombre">${esc(p.simbolo)}</span><span class="leyenda-pct">${(frac * 100).toFixed(1)}%</span></div>`;
+    acc += frac;
+  });
+  svg.innerHTML = circles + `<text x="${cx}" y="${cy - 4}" text-anchor="middle" fill="${COL.text}" font-size="15" font-weight="700" font-family="Bricolage Grotesque, sans-serif">${con.length}</text><text x="${cx}" y="${cy + 12}" text-anchor="middle" fill="${COL.muted}" font-size="9">activos</text>`;
+  ley.innerHTML = leyenda;
+  if (!reducedMotion) { svg.style.transition = 'none'; svg.style.opacity = '0'; svg.style.transform = 'scale(0.85) rotate(-12deg)'; requestAnimationFrame(() => { svg.style.transition = 'opacity .6s cubic-bezier(0.16,1,0.3,1), transform .6s cubic-bezier(0.16,1,0.3,1)'; svg.style.opacity = '1'; svg.style.transform = 'none'; }); }
+}
+
+// ---------- Anillo (marcador) ----------
+function construirAnillo(m) {
+  const svg = document.getElementById('graficoAnillo'); if (!m) m = { tasa: null, aciertos: 0, total: 0, abiertas: 0 };
+  const cx = 70, cy = 70, r = 54, C = 2 * Math.PI * r;
+  const tasa = m.tasa, pct = tasa == null ? 0 : tasa / 100;
+  const c = tasa == null ? COL.faint : (tasa >= 50 ? COL.green : COL.red);
+  svg.innerHTML = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${COL.track}" stroke-width="12"/>
+    <circle id="anilloProg" cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${c}" stroke-width="12" stroke-linecap="round" transform="rotate(-90 ${cx} ${cy})" stroke-dasharray="${C.toFixed(2)}" stroke-dashoffset="${C.toFixed(2)}"/>
+    <text x="${cx}" y="${cy - 1}" text-anchor="middle" fill="${COL.text}" font-size="27" font-weight="800" font-family="Bricolage Grotesque, sans-serif">${tasa == null ? '—' : Math.round(tasa) + '%'}</text>
+    <text x="${cx}" y="${cy + 17}" text-anchor="middle" fill="${COL.muted}" font-size="10">aciertos</text>`;
+  const prog = svg.querySelector('#anilloProg'), destino = C * (1 - pct);
+  if (reducedMotion) prog.setAttribute('stroke-dashoffset', destino.toFixed(2));
+  else requestAnimationFrame(() => { prog.style.transition = 'stroke-dashoffset 1.2s cubic-bezier(0.16,1,0.3,1)'; prog.setAttribute('stroke-dashoffset', destino.toFixed(2)); });
+  document.getElementById('marcadorChips').innerHTML = `<div class="anillo-detalle"><strong style="color:var(--text)">${m.aciertos}/${m.total}</strong> cerradas con acierto</div><div class="anillo-detalle">${m.abiertas} lectura(s) abierta(s)</div>`;
+}
+
+// ---------- Sparkline ----------
+function sparkSVG(spark) {
+  if (!spark || spark.length < 2) return '<span style="color:var(--faint)">—</span>';
+  const W = 78, H = 26, pad = 2, min = Math.min(...spark), max = Math.max(...spark), rango = (max - min) || 1;
+  const x = (i) => pad + (i / (spark.length - 1)) * (W - 2 * pad);
+  const y = (v) => H - pad - ((v - min) / rango) * (H - 2 * pad);
+  let d = ''; spark.forEach((v, i) => { d += (i ? 'L' : 'M') + x(i).toFixed(1) + ',' + y(v).toFixed(1) + ' '; });
+  const c = spark[spark.length - 1] >= spark[0] ? COL.green : COL.red;
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}"><path d="${d}" fill="none" stroke="${c}" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+}
+
+// ---------- Posiciones ----------
+const TRASH = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>';
+function pintarPosiciones(posiciones) {
+  const cuerpo = document.getElementById('cuerpoPosiciones'), tabla = document.getElementById('tablaPosiciones'), vacio = document.getElementById('vacioPosiciones');
+  const pos = (posiciones || []).filter((p) => !ocultosSim.has(p.simbolo));
+  if (!pos.length) { tabla.style.display = 'none'; vacio.hidden = false; cuerpo.innerHTML = ''; return; }
+  tabla.style.display = ''; vacio.hidden = true;
+  cuerpo.innerHTML = pos.map((p) => `
+    <tr>
+      <td><div class="activo-cell"><span class="activo-sim">${esc(p.simbolo)}</span></div></td>
+      <td>${sparkSVG(p.spark)}</td>
+      <td class="der num">${fmtNum(p.cantidad)}</td>
+      <td class="der num">${fmtDinero(p.costoPromedio)}</td>
+      <td class="der num">${p.precioActual != null ? fmtDinero(p.precioActual) : '<span class="precio-error">sin precio</span>'}</td>
+      <td class="der num">${fmtDinero(p.valor)}</td>
+      <td class="der num ${clase(p.gp)}">${fmtDinero(p.gp)} <small>${p.gpPct != null ? '(' + fmtPct(p.gpPct) + ')' : ''}</small></td>
+      <td><button class="fila-borrar" data-borrar="pos" data-sim="${esc(p.simbolo)}" aria-label="Eliminar ${esc(p.simbolo)}">${TRASH}</button></td>
+    </tr>`).join('');
+}
+
+// ---------- Predicciones ----------
+function etiquetaEstado(p) { return p.estado === 'acertada' ? '✓ Acertada' : p.estado === 'fallada' ? '✗ Fallada' : 'Abierta'; }
+function pintarPredicciones(preds, marcador) {
+  const lista = document.getElementById('listaPredicciones'), vacio = document.getElementById('vacioPredicciones');
+  const ps = (preds || []).filter((p) => !ocultosPred.has(p.id));
+  if (!ps.length) { lista.innerHTML = ''; vacio.hidden = false; return; }
+  vacio.hidden = true;
+  lista.innerHTML = ps.map((p) => `
+    <li class="pred-item">
+      <div class="pred-dir ${p.direccion}">${p.direccion === 'sube' ? '▲' : '▼'}</div>
+      <div class="pred-info">
+        <div class="pred-sim">${esc(p.simbolo)}${p.autor === 'claude' ? ' <span class="pred-autor">· por Claude</span>' : ''}</div>
+        <div class="pred-meta">${p.probabilidad != null ? p.probabilidad + '% · ' : ''}plazo ${p.plazoDias}d · desde ${esc(p.fechaCreacion)} · entró a ${fmtDinero(p.precioInicial)}${p.razon ? (' · ' + esc(p.razon)) : ''}</div>
+      </div>
+      <span class="pred-estado estado-${p.estado}">${etiquetaEstado(p)}</span>
+      <button class="fila-borrar" data-borrar="pred" data-id="${esc(p.id)}" style="opacity:.5" aria-label="Eliminar lectura">${TRASH}</button>
+    </li>`).join('');
+}
+
+// ---------- Confeti ----------
+function confeti() {
+  if (reducedMotion) return;
+  const cv = document.getElementById('confeti'), ctx = cv.getContext('2d');
+  cv.width = innerWidth; cv.height = innerHeight;
+  const parts = [];
+  for (let i = 0; i < 150; i++) parts.push({ x: innerWidth / 2 + (Math.random() - 0.5) * 240, y: innerHeight / 3, vx: (Math.random() - 0.5) * 10, vy: Math.random() * -13 - 4, g: 0.4 + Math.random() * 0.3, rot: Math.random() * 6, vr: (Math.random() - 0.5) * 0.4, s: 5 + Math.random() * 7, c: PALETA[i % PALETA.length] });
+  let f = 0;
+  (function paso() {
+    f++; ctx.clearRect(0, 0, cv.width, cv.height);
+    parts.forEach((p) => { p.vy += p.g; p.x += p.vx; p.y += p.vy; p.rot += p.vr; ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.fillStyle = p.c; ctx.fillRect(-p.s / 2, -p.s / 2, p.s, p.s * 0.6); ctx.restore(); });
+    if (f < 160) requestAnimationFrame(paso); else ctx.clearRect(0, 0, cv.width, cv.height);
+  })();
+}
+
+// ---------- Autocompletar ----------
+const buscarInput = document.getElementById('buscarSimbolo'), acUl = document.getElementById('resultadosBusqueda');
+let acTimer, acItems = [], acIdx = -1;
+buscarInput.addEventListener('input', () => { clearTimeout(acTimer); const q = buscarInput.value.trim(); if (q.length < 1) { acUl.hidden = true; return; } acTimer = setTimeout(() => buscar(q), 250); });
+async function buscar(q) { try { const r = await fetch('/api/buscar?q=' + encodeURIComponent(q)); const j = await r.json(); acItems = j.resultados || []; pintarAC(); } catch { acUl.hidden = true; } }
+function pintarAC() { if (!acItems.length) { acUl.hidden = true; return; } acIdx = -1; acUl.innerHTML = acItems.map((x, i) => `<li data-i="${i}"><span><span class="ac-sim">${esc(x.simbolo)}</span> <span class="ac-nom">${esc(x.nombre)}</span></span><span class="ac-bolsa">${esc(x.bolsa)}</span></li>`).join(''); acUl.hidden = false; }
+acUl.addEventListener('click', (e) => { const li = e.target.closest('li'); if (li) elegirAC(+li.dataset.i); });
+buscarInput.addEventListener('keydown', (e) => {
+  if (acUl.hidden) return;
+  if (e.key === 'ArrowDown') { e.preventDefault(); acIdx = Math.min(acIdx + 1, acItems.length - 1); marcarAC(); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); acIdx = Math.max(acIdx - 1, 0); marcarAC(); }
+  else if (e.key === 'Enter' && acIdx >= 0) { e.preventDefault(); elegirAC(acIdx); }
+  else if (e.key === 'Escape') acUl.hidden = true;
+});
+function marcarAC() { [...acUl.children].forEach((li, i) => li.classList.toggle('activa', i === acIdx)); }
+async function elegirAC(i) {
+  const x = acItems[i]; if (!x) return;
+  buscarInput.value = x.simbolo; acUl.hidden = true;
+  const hint = document.getElementById('hintPrecio'); hint.textContent = 'buscando precio…';
+  try { const r = await fetch('/api/precio?simbolo=' + encodeURIComponent(x.simbolo)); const j = await r.json(); if (j.precio != null) { document.querySelector('#formOperacion input[name=precio]').value = j.precio; hint.textContent = 'precio de ahora ✓'; } else hint.textContent = ''; } catch { hint.textContent = ''; }
+}
+
+// ---------- Modal ----------
+const modal = document.getElementById('modal'), fab = document.getElementById('fab');
+function abrirModal(tab) { modal.hidden = false; cambiarTab(tab || 'operacion'); document.querySelector('#formOperacion input[name=fecha]').value = hoyISO(); setTimeout(() => buscarInput.focus(), 60); }
+function cerrarModal() {
+  modal.hidden = true;
+  document.getElementById('formOperacion').reset(); document.getElementById('formPrediccion').reset();
+  acUl.hidden = true; document.getElementById('hintPrecio').textContent = '';
+  segReset('segTipo', 'compra', 'inputTipo'); segReset('segDir', 'sube', 'inputDir');
+}
+function cambiarTab(name) { document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('activa', t.dataset.tab === name)); document.querySelectorAll('.panel-form').forEach((f) => (f.hidden = f.dataset.panel !== name)); }
+function segReset(id, val, input) { document.querySelectorAll('#' + id + ' .seg').forEach((s) => s.classList.toggle('activa', (s.dataset.tipo || s.dataset.dir) === val)); document.getElementById(input).value = val; }
+fab.addEventListener('click', () => abrirModal('operacion'));
+document.getElementById('cerrarModal').addEventListener('click', cerrarModal);
+modal.addEventListener('click', (e) => { if (e.target === modal) cerrarModal(); });
+document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => cambiarTab(t.dataset.tab)));
+document.getElementById('segTipo').addEventListener('click', (e) => { const b = e.target.closest('.seg'); if (!b) return; segReset('segTipo', b.dataset.tipo, 'inputTipo'); });
+document.getElementById('segDir').addEventListener('click', (e) => { const b = e.target.closest('.seg'); if (!b) return; segReset('segDir', b.dataset.dir, 'inputDir'); });
+
+// ---------- Envío de formularios ----------
+function avisoDemo() { toast('Estás en modo demo. Toca "Borrar y empezar de cero" para guardar lo tuyo.'); }
+document.getElementById('formOperacion').addEventListener('submit', async (e) => {
+  e.preventDefault(); if (modoDemo) { avisoDemo(); return; }
+  const f = e.target;
+  const cuerpo = { simbolo: f.simbolo.value, tipo: f.tipo.value, cantidad: f.cantidad.value, precio: f.precio.value, fecha: f.fecha.value, comision: f.comision.value, nota: f.nota.value };
+  const r = await fetch('/api/operaciones', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) });
+  if (r.ok) { cerrarModal(); toast('Operación guardada ✓'); cargar(); } else { const er = await r.json().catch(() => ({})); toast(er.error || 'No se pudo guardar'); }
+});
+document.getElementById('formPrediccion').addEventListener('submit', async (e) => {
+  e.preventDefault(); if (modoDemo) { avisoDemo(); return; }
+  const f = e.target;
+  const cuerpo = { simbolo: f.simbolo.value, direccion: f.direccion.value, probabilidad: f.probabilidad.value, plazoDias: f.plazoDias.value, razon: f.razon.value };
+  const r = await fetch('/api/predicciones', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo) });
+  if (r.ok) { cerrarModal(); toast('Lectura guardada ✓'); cargar(); } else { const er = await r.json().catch(() => ({})); toast(er.error || 'No se pudo guardar'); }
+});
+
+// ---------- Toasts ----------
+function cerrarToast(t) { t.classList.add('saliendo'); setTimeout(() => t.remove(), 300); }
+function toast(msg) { const t = document.createElement('div'); t.className = 'toast'; t.innerHTML = '<span>' + esc(msg) + '</span>'; document.getElementById('toasts').appendChild(t); setTimeout(() => cerrarToast(t), 3400); }
+function toastUndo(msg, onUndo, onCommit) {
+  const t = document.createElement('div'); t.className = 'toast'; t.innerHTML = '<span>' + esc(msg) + '</span>';
+  const btn = document.createElement('button'); btn.className = 'toast-undo'; btn.textContent = 'Deshacer'; t.appendChild(btn);
+  document.getElementById('toasts').appendChild(t);
+  let hecho = false;
+  const timer = setTimeout(() => { if (hecho) return; hecho = true; cerrarToast(t); onCommit(); }, 5000);
+  btn.onclick = () => { if (hecho) return; hecho = true; clearTimeout(timer); cerrarToast(t); onUndo(); };
+}
+
+// ---------- Borrado optimista (con deshacer) ----------
+function borrarPosicion(sim) {
+  ocultosSim.add(sim); render(ESTADO);
+  toastUndo('Posición eliminada', () => { ocultosSim.delete(sim); render(ESTADO); }, async () => {
+    const ids = (ESTADO.operaciones || []).filter((o) => o.simbolo === sim).map((o) => o.id);
+    for (const tid of ids) { try { await fetch('/api/operaciones?id=' + tid, { method: 'DELETE' }); } catch {} }
+    ocultosSim.delete(sim); cargar();
+  });
+}
+function borrarPred(id) {
+  ocultosPred.add(id); render(ESTADO);
+  toastUndo('Lectura eliminada', () => { ocultosPred.delete(id); render(ESTADO); }, async () => {
+    try { await fetch('/api/predicciones?id=' + id, { method: 'DELETE' }); } catch {}
+    ocultosPred.delete(id); cargar();
+  });
+}
+
+// ---------- Click maestro (delegación) ----------
+document.addEventListener('click', (e) => {
+  const ab = e.target.closest('[data-abrir-modal]'); if (ab) { abrirModal(ab.dataset.abrirModal); return; }
+  const del = e.target.closest('[data-borrar]'); if (del) { if (modoDemo) { avisoDemo(); return; } if (del.dataset.borrar === 'pos') borrarPosicion(del.dataset.sim); else borrarPred(del.dataset.id); return; }
+  const inf = e.target.closest('[data-info]'); const pop = document.getElementById('popInfo');
+  if (inf) { pop.textContent = inf.dataset.info; pop.hidden = false; const r = inf.getBoundingClientRect(); pop.style.top = (r.bottom + 8) + 'px'; pop.style.left = Math.min(r.left, innerWidth - 262) + 'px'; return; }
+  pop.hidden = true;
+  if (!e.target.closest('.campo-busqueda')) acUl.hidden = true;
+});
+
+// ---------- Atajos de teclado ----------
+document.addEventListener('keydown', (e) => {
+  const enInput = e.target.matches('input,select,textarea');
+  if (e.key === 'Escape') { if (!modal.hidden) cerrarModal(); else if (!document.getElementById('tour').hidden) cerrarTour(); return; }
+  if (enInput) return;
+  if (e.key.toLowerCase() === 'n') abrirModal('operacion');
+  else if (e.key === '/') { e.preventDefault(); abrirModal('operacion'); }
+});
+
+// ---------- Tour guiado ----------
+const PASOS = [
+  { sel: '[data-tour="heroe"]', t: 'Tu cartera de un vistazo', x: 'Aquí ves cuánto vale todo tu dinero hoy y cuánto has ganado o perdido en total.' },
+  { sel: '[data-tour="reparto"]', t: '¿Dónde está tu dinero?', x: 'La dona muestra en qué activos está repartida tu plata. De un vistazo sabes si estás muy cargado en una sola cosa.' },
+  { sel: '[data-tour="marcador"]', t: 'El marcador del bróker', x: 'Cada lectura (sube o baja) se anota con fecha. Al cumplir su plazo, el panel marca solo si acertó o falló. Este es mi porcentaje real de aciertos: sin trampa.' },
+  { sel: '[data-tour="posiciones"]', t: 'Tus posiciones', x: 'Cada cosa que compraste, con su precio de ahora, su mini-gráfica de 5 días y tu ganancia en vivo.' },
+  { sel: '[data-tour="lecturas"]', t: 'Las lecturas', x: 'Tus predicciones (o las que yo te dé en el chat) viven aquí con su resultado.' },
+  { sel: '[data-tour="fab"]', t: 'Agregar es así de fácil', x: 'Toca el botón + para registrar una compra en segundos: escribe el nombre, el panel te trae el precio de ahora, y listo.' },
+];
+let pasoIdx = 0;
+function iniciarTour() { pasoIdx = 0; document.getElementById('tour').hidden = false; mostrarPaso(); }
+function mostrarPaso() {
+  const p = PASOS[pasoIdx], el = document.querySelector(p.sel);
+  if (!el) { siguientePaso(); return; }
+  el.scrollIntoView({ block: 'center', behavior: reducedMotion ? 'auto' : 'smooth' });
+  setTimeout(() => {
+    const r = el.getBoundingClientRect(), pad = 8;
+    const hueco = document.getElementById('tourHueco');
+    hueco.style.left = (r.left - pad) + 'px'; hueco.style.top = (r.top - pad) + 'px';
+    hueco.style.width = (r.width + pad * 2) + 'px'; hueco.style.height = (r.height + pad * 2) + 'px';
+    document.getElementById('tourTitulo').textContent = p.t;
+    document.getElementById('tourTexto').textContent = p.x;
+    document.getElementById('tourPaso').textContent = 'Paso ' + (pasoIdx + 1) + ' de ' + PASOS.length;
+    document.getElementById('tourAtras').style.visibility = pasoIdx === 0 ? 'hidden' : 'visible';
+    document.getElementById('tourSiguiente').textContent = pasoIdx === PASOS.length - 1 ? '¡Listo!' : 'Siguiente';
+    const globo = document.getElementById('tourGlobo'), gh = globo.offsetHeight || 170, gw = Math.min(330, innerWidth * 0.86);
+    let top = r.bottom + 14; if (top + gh > innerHeight - 10) top = Math.max(14, r.top - gh - 14);
+    let left = Math.min(Math.max(14, r.left), innerWidth - gw - 14);
+    globo.style.top = top + 'px'; globo.style.left = left + 'px';
+  }, reducedMotion ? 0 : 320);
+}
+function siguientePaso() { if (pasoIdx < PASOS.length - 1) { pasoIdx++; mostrarPaso(); } else cerrarTour(); }
+function atrasPaso() { if (pasoIdx > 0) { pasoIdx--; mostrarPaso(); } }
+function cerrarTour() { document.getElementById('tour').hidden = true; localStorage.setItem('cartera_tour_visto', '1'); }
+document.getElementById('tourSiguiente').addEventListener('click', siguientePaso);
+document.getElementById('tourAtras').addEventListener('click', atrasPaso);
+document.getElementById('tourSaltar').addEventListener('click', cerrarTour);
+document.getElementById('btnAyuda').addEventListener('click', iniciarTour);
+window.addEventListener('resize', () => { if (!document.getElementById('tour').hidden) mostrarPaso(); });
+
+// ---------- Modo demo ----------
+const ESTADO_DEMO = {
+  moneda: 'USD', proveedor: 'datos de ejemplo', actualizado: '(demo)',
+  resumen: { invertido: 8400, valorActual: 10238, gpTotal: 1838, gpTotalPct: 21.88, realizado: 120, cambioDia: 64, gananciaMes: { disponible: true, valor: 540 } },
+  posiciones: [
+    { simbolo: 'AAPL', cantidad: 15, costoPromedio: 150, precioActual: 182, moneda: 'USD', valor: 2730, gp: 480, gpPct: 21.3, cambioDia: 12, spark: [170, 172, 168, 176, 182], error: false },
+    { simbolo: 'NVDA', cantidad: 10, costoPromedio: 110, precioActual: 138, moneda: 'USD', valor: 1380, gp: 280, gpPct: 25.5, cambioDia: 20, spark: [120, 128, 131, 135, 138], error: false },
+    { simbolo: 'TSLA', cantidad: 8, costoPromedio: 240, precioActual: 268, moneda: 'USD', valor: 2144, gp: 224, gpPct: 11.7, cambioDia: -8, spark: [260, 272, 265, 270, 268], error: false },
+    { simbolo: 'BTC-USD', cantidad: 0.05, costoPromedio: 52000, precioActual: 79680, moneda: 'USD', valor: 3984, gp: 1384, gpPct: 53.2, cambioDia: 40, spark: [60000, 72000, 75000, 77000, 79680], error: false },
+  ],
+  operaciones: [],
+  predicciones: [
+    { id: 'd1', simbolo: 'NVDA', direccion: 'sube', probabilidad: 70, plazoDias: 30, razon: 'IA en auge', fechaCreacion: '2026-05-20', precioInicial: 120, estado: 'acertada', precioFinal: 138, autor: 'claude' },
+    { id: 'd2', simbolo: 'TSLA', direccion: 'sube', probabilidad: 60, plazoDias: 14, razon: 'entregas del trimestre', fechaCreacion: '2026-06-15', precioInicial: 268, estado: 'abierta', autor: 'claude' },
+  ],
+  marcador: { total: 1, aciertos: 1, tasa: 100, abiertas: 1 },
+  historico: [
+    { fecha: '2026-06-14', valorTotal: 9100 }, { fecha: '2026-06-15', valorTotal: 9320 }, { fecha: '2026-06-16', valorTotal: 9210 },
+    { fecha: '2026-06-17', valorTotal: 9580 }, { fecha: '2026-06-18', valorTotal: 9760 }, { fecha: '2026-06-19', valorTotal: 10010 },
+    { fecha: '2026-06-20', valorTotal: 9930 }, { fecha: '2026-06-21', valorTotal: 10238 },
+  ],
+};
+function entrarDemo() { modoDemo = true; ESTADO = ESTADO_DEMO; document.getElementById('bannerDemo').hidden = false; pintarTodo(ESTADO_DEMO); }
+document.getElementById('btnSalirDemo').addEventListener('click', () => { localStorage.setItem('cartera_tour_visto', '1'); cargar(); });
+const _verDemo = document.getElementById('btnVerDemo'); if (_verDemo) _verDemo.addEventListener('click', entrarDemo);
+
+// ---------- Arranque ----------
+async function init() {
+  let real = null;
+  try { const r = await fetch('/api/estado'); real = await r.json(); } catch {}
+  if (real) { ESTADO = real; pintarTodo(real); }
+  else document.getElementById('infoFuente').textContent = 'No se pudo conectar con el motor.';
+  if (!localStorage.getItem('cartera_tour_visto')) iniciarTour();
+  setInterval(() => { if (!modoDemo && !document.hidden) cargar(); }, 60000);
+}
+init();
