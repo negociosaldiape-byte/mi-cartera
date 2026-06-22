@@ -78,6 +78,22 @@
     <!-- KPIs -->
     <section class="kpis" id="kpis"></section>
 
+    <!-- Proyección a 30 días -->
+    <section class="proyeccion" id="proyeccion" hidden data-tour="proyeccion">
+      <div class="proy-info">
+        <p class="proy-label">Tu plata en 30 días <span class="proy-badge">análisis 🐺</span></p>
+        <h3 class="proy-valor"><span id="proyValor" data-count="0">—</span></h3>
+        <div class="proy-chips">
+          <span id="proyPct" class="chip-pct">—</span>
+          <span class="proy-rango">rango probable <strong id="proyRango">—</strong></span>
+        </div>
+        <p class="proy-pie"><span id="proyFecha"></span> · estimación, no garantía</p>
+      </div>
+      <div class="proy-grafico">
+        <svg id="proyChart" viewBox="0 0 320 130" preserveAspectRatio="none" aria-label="Proyección de tu cartera a 30 días"></svg>
+      </div>
+    </section>
+
     <!-- GRÁFICOS -->
     <section class="graficos">
       <div class="tarjeta grafico-card" data-tour="reparto">

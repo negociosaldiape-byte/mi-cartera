@@ -1,6 +1,7 @@
 node_modules/
 data.json
 config.json
+proyeccion.json
 .playwright-mcp/
 *.png
 *.log

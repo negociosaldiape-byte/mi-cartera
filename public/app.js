@@ -68,6 +68,7 @@ function pintarTodo(e) {
   document.getElementById('infoFuente').textContent = modoDemo ? 'Datos de ejemplo' : ('Precios: ' + e.proveedor + ' · ' + e.actualizado);
   pintarHeroe(e.resumen);
   pintarKPIs(e.resumen);
+  pintarProyeccion(e.proyeccion);
   construirArea(e.historico);
   construirDonut(e.posiciones);
   construirAnillo(e.marcador);
@@ -141,6 +142,42 @@ function pintarKPIs(r) {
   setNum(document.getElementById('kpiEfectivo'), 'efe', r.efectivo, fmtDinero);
   const pyl = document.getElementById('kpiPyl'); setNum(pyl, 'pyl', r.gpTotal, fmtDinero); const cpyl = clase(r.gpTotal); if (cpyl) pyl.classList.add(cpyl);
   if (mes.disponible) { const m = document.getElementById('kpiMes'); setNum(m, 'mes', mes.valor, fmtDinero); const cm = clase(mes.valor); if (cm) m.classList.add(cm); }
+}
+
+// ---------- Proyección 30 días ----------
+function pintarProyeccion(pr) {
+  const sec = document.getElementById('proyeccion');
+  if (!sec) return;
+  if (!pr || pr.esperado == null) { sec.hidden = true; return; }
+  sec.hidden = false;
+  setNum(document.getElementById('proyValor'), 'proy', pr.esperado, fmtDinero);
+  const pct = document.getElementById('proyPct');
+  pct.textContent = fmtPct(pr.pctEsperado); pct.className = 'chip-pct ' + clase(pr.pctEsperado);
+  document.getElementById('proyRango').textContent = fmtDinero(pr.pesimista) + ' – ' + fmtDinero(pr.optimista);
+  const f = document.getElementById('proyFecha');
+  f.textContent = pr.generado ? ('Actualizado ' + new Date(pr.generado).toLocaleDateString('es', { day: '2-digit', month: 'short' })) : '';
+  dibujarCono(pr);
+}
+function dibujarCono(pr) {
+  const svg = document.getElementById('proyChart'); if (!svg) return;
+  const W = 320, H = 130, padX = 10, padY = 14;
+  const base = pr.valorHoy != null ? pr.valorHoy : pr.esperado;
+  const vals = [base, pr.esperado, pr.pesimista, pr.optimista].filter((v) => typeof v === 'number');
+  let min = Math.min(...vals), max = Math.max(...vals);
+  const rg = (max - min) || (Math.abs(max) * 0.02) || 1;
+  min -= rg * 0.15; max += rg * 0.15;
+  const span = (max - min) || 1, x0 = padX, x1 = W - padX;
+  const y = (v) => (H - padY - ((v - min) / span) * (H - 2 * padY)).toFixed(1);
+  const subio = pr.esperado >= base, c = subio ? COL.green : COL.red;
+  const yb = y(base), ye = y(pr.esperado), yo = y(pr.optimista), yp = y(pr.pesimista);
+  svg.innerHTML = `<defs><linearGradient id="gProy" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${c}" stop-opacity="0.04"/><stop offset="1" stop-color="${c}" stop-opacity="0.26"/></linearGradient></defs>
+    <path d="M${x0},${yb} L${x1},${yo} L${x1},${yp} Z" fill="url(#gProy)"/>
+    <line x1="${x0}" y1="${yb}" x2="${x1}" y2="${yo}" stroke="${c}" stroke-width="1" stroke-opacity="0.45" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>
+    <line x1="${x0}" y1="${yb}" x2="${x1}" y2="${yp}" stroke="${c}" stroke-width="1" stroke-opacity="0.45" stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>
+    <line id="proyLinea" x1="${x0}" y1="${yb}" x2="${x1}" y2="${ye}" stroke="${c}" stroke-width="2.6" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+    <circle cx="${x0}" cy="${yb}" r="3.6" fill="${COL.muted}"/>
+    <circle cx="${x1}" cy="${ye}" r="4.6" fill="${c}" stroke="#0a1122" stroke-width="2"/>`;
+  if (!reducedMotion) { const l = svg.querySelector('#proyLinea'); try { const len = l.getTotalLength(); l.style.strokeDasharray = len; l.style.strokeDashoffset = len; requestAnimationFrame(() => { l.style.transition = 'stroke-dashoffset 1.1s cubic-bezier(0.16,1,0.3,1)'; l.style.strokeDashoffset = 0; }); } catch (e) {} }
 }
 
 // ---------- Gráfico de área (evolución) ----------
@@ -376,6 +413,7 @@ document.addEventListener('keydown', (e) => {
 // ---------- Tour guiado ----------
 const PASOS = [
   { sel: '[data-tour="heroe"]', t: 'Tu cartera de un vistazo', x: 'Aquí ves cuánto vale todo tu dinero hoy y cuánto has ganado o perdido en total.' },
+  { sel: '[data-tour="proyeccion"]', t: 'Tu plata en 30 días', x: 'Mi proyección de cuánto podría valer tu cartera en un mes, con su rango probable (de menos a más). Se actualiza sola cada 2 días.' },
   { sel: '[data-tour="reparto"]', t: '¿Dónde está tu dinero?', x: 'La dona muestra en qué activos está repartida tu plata. De un vistazo sabes si estás muy cargado en una sola cosa.' },
   { sel: '[data-tour="marcador"]', t: 'El marcador del bróker', x: 'Cada lectura (sube o baja) se anota con fecha. Al cumplir su plazo, el panel marca solo si acertó o falló. Este es mi porcentaje real de aciertos: sin trampa.' },
   { sel: '[data-tour="posiciones"]', t: 'Tus posiciones', x: 'Cada cosa que compraste, con su precio de ahora, su mini-gráfica de 5 días y tu ganancia en vivo.' },
@@ -417,6 +455,7 @@ window.addEventListener('resize', () => { if (!document.getElementById('tour').h
 const ESTADO_DEMO = {
   moneda: 'USD', proveedor: 'datos de ejemplo', actualizado: '(demo)',
   resumen: { capitalInicial: 10000, invertido: 8400, valorActual: 10238, valorPosiciones: 10238, efectivo: 1600, valorTotal: 11838, gpTotal: 1838, gpTotalPct: 18.38, realizado: 120, cambioDia: 64, gananciaMes: { disponible: true, valor: 540 } },
+  proyeccion: { generado: '2026-06-21T00:00:00Z', horizonteDias: 30, valorHoy: 11838, esperado: 12450, pesimista: 11100, optimista: 13800, pctEsperado: 5.17 },
   posiciones: [
     { simbolo: 'AAPL', cantidad: 15, costoPromedio: 150, precioActual: 182, moneda: 'USD', valor: 2730, gp: 480, gpPct: 21.3, cambioDia: 12, spark: [170, 172, 168, 176, 182], error: false },
     { simbolo: 'NVDA', cantidad: 10, costoPromedio: 110, precioActual: 138, moneda: 'USD', valor: 1380, gp: 280, gpPct: 25.5, cambioDia: 20, spark: [120, 128, 131, 135, 138], error: false },

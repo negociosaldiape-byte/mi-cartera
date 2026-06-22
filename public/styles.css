@@ -169,6 +169,20 @@ body {
 @keyframes flashUp { 0%, 30% { color: var(--green); text-shadow: 0 0 18px rgba(47,217,138,0.5); } }
 @keyframes flashDown { 0%, 30% { color: var(--red); text-shadow: 0 0 18px rgba(255,92,108,0.5); } }
 
+/* ---------- Proyección 30 días ---------- */
+.proyeccion { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: center; padding: 22px 24px; margin-bottom: 20px;
+  background: linear-gradient(135deg, rgba(108,140,255,0.10), var(--surface)); border: 1px solid var(--border); border-radius: var(--radio);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); box-shadow: var(--sombra); }
+.proy-label { color: var(--muted); font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 8px; display: flex; align-items: center; gap: 8px; }
+.proy-badge { text-transform: none; letter-spacing: 0; font-size: 0.72rem; font-weight: 700; color: var(--accent); background: rgba(108,140,255,0.14); padding: 2px 9px; border-radius: 999px; }
+.proy-valor { font-family: var(--fuente-display); font-size: clamp(2rem, 5vw, 2.9rem); font-weight: 800; margin: 0; letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; }
+.proy-chips { display: flex; align-items: center; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
+.proy-rango { color: var(--muted); font-size: 0.84rem; }
+.proy-rango strong { color: var(--text); font-variant-numeric: tabular-nums; }
+.proy-pie { color: var(--faint); font-size: 0.78rem; margin: 12px 0 0; }
+.proy-grafico { position: relative; height: 130px; }
+#proyChart { width: 100%; height: 100%; overflow: visible; }
+
 /* ---------- Gráficos ---------- */
 .graficos { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; margin-bottom: 20px; }
 .grafico-card { padding: 20px; }
@@ -317,6 +331,7 @@ input::placeholder { color: var(--faint); }
 @media (max-width: 820px) {
   .heroe { grid-template-columns: 1fr; }
   .graficos { grid-template-columns: 1fr; }
+  .proyeccion { grid-template-columns: 1fr; }
 }
 @media (max-width: 640px) {
   .app { padding: 18px 14px 110px; }
