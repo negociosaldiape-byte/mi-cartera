@@ -322,6 +322,7 @@ document.addEventListener('click', (e) => {
   if (inf) { pop.textContent = inf.dataset.info; pop.hidden = false; const r = inf.getBoundingClientRect(); pop.style.top = (r.bottom + 8) + 'px'; pop.style.left = Math.min(r.left, innerWidth - 262) + 'px'; return; }
   pop.hidden = true;
   if (!e.target.closest('.campo-busqueda')) acUl.hidden = true;
+  if (!e.target.closest('.buscador-global')) { const _bg = document.getElementById('resultadosGlobal'); if (_bg) _bg.hidden = true; }
 });
 
 // ---------- Atajos de teclado ----------
@@ -495,6 +496,17 @@ document.getElementById('mgRangos').addEventListener('click', (e) => { const b =
 mg.wrap.addEventListener('mousemove', hoverGrafico);
 mg.wrap.addEventListener('mouseleave', salirHover);
 mg.wrap.addEventListener('touchmove', (e) => { if (e.touches[0]) hoverGrafico(e.touches[0]); }, { passive: true });
+
+// ---------- Buscador global (toda la bolsa) ----------
+const bgInput = document.getElementById('buscadorGlobal'), bgUl = document.getElementById('resultadosGlobal');
+let bgTimer, bgItems = [], bgIdx = -1;
+bgInput.addEventListener('input', () => { clearTimeout(bgTimer); const q = bgInput.value.trim(); if (q.length < 1) { bgUl.hidden = true; return; } bgTimer = setTimeout(() => bgBuscar(q), 250); });
+async function bgBuscar(q) { try { const r = await fetch('/api/buscar?q=' + encodeURIComponent(q)); const j = await r.json(); bgItems = j.resultados || []; bgPintar(); } catch { bgUl.hidden = true; } }
+function bgPintar() { if (!bgItems.length) { bgUl.hidden = true; return; } bgIdx = -1; bgUl.innerHTML = bgItems.map((x, i) => `<li data-i="${i}"><span><span class="ac-sim">${esc(x.simbolo)}</span> <span class="ac-nom">${esc(x.nombre)}</span></span><span class="ac-bolsa">${esc(x.bolsa)}</span></li>`).join(''); bgUl.hidden = false; }
+function bgElegir(i) { const x = bgItems[i]; if (!x) return; bgUl.hidden = true; bgInput.value = ''; abrirGrafico(x.simbolo); }
+bgUl.addEventListener('click', (e) => { const li = e.target.closest('li'); if (li) bgElegir(+li.dataset.i); });
+bgInput.addEventListener('keydown', (e) => { if (bgUl.hidden) return; if (e.key === 'ArrowDown') { e.preventDefault(); bgIdx = Math.min(bgIdx + 1, bgItems.length - 1); bgMarcar(); } else if (e.key === 'ArrowUp') { e.preventDefault(); bgIdx = Math.max(bgIdx - 1, 0); bgMarcar(); } else if (e.key === 'Enter' && bgIdx >= 0) { e.preventDefault(); bgElegir(bgIdx); } else if (e.key === 'Escape') bgUl.hidden = true; });
+function bgMarcar() { [...bgUl.children].forEach((li, i) => li.classList.toggle('activa', i === bgIdx)); }
 
 // ---------- Arranque ----------
 async function init() {

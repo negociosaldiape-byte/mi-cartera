@@ -96,6 +96,13 @@ body {
 .icono-btn:hover { color: var(--text); border-color: var(--border-fuerte); background: var(--surface-2); transform: translateY(-1px); }
 .icono-btn:active { transform: scale(0.94); }
 
+/* ---------- Buscador global ---------- */
+.buscador-global { position: relative; margin-bottom: 22px; }
+.buscador-global .bg-lupa { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+.buscador-global input { width: 100%; padding: 15px 16px 15px 46px; font-size: 1rem; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; color: var(--text); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); font-family: var(--fuente); transition: border-color 0.2s, box-shadow 0.2s; }
+.buscador-global input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+.buscador-global input::placeholder { color: var(--faint); }
+
 /* ---------- Banner demo ---------- */
 .banner-demo { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
   background: linear-gradient(90deg, rgba(245,196,81,0.16), rgba(245,196,81,0.05)); border: 1px solid rgba(245,196,81,0.3);
