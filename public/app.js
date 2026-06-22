@@ -180,8 +180,8 @@ function pintarPosiciones(posiciones) {
   if (!pos.length) { tabla.style.display = 'none'; vacio.hidden = false; cuerpo.innerHTML = ''; return; }
   tabla.style.display = ''; vacio.hidden = true;
   cuerpo.innerHTML = pos.map((p) => `
-    <tr>
-      <td><div class="activo-cell"><span class="activo-sim">${esc(p.simbolo)}</span></div></td>
+    <tr class="fila-clic" data-sim="${esc(p.simbolo)}">
+      <td><div class="activo-cell"><span class="activo-sim">${esc(p.simbolo)}</span><span class="ver-grafico">ver gráfico ↗</span></div></td>
       <td>${sparkSVG(p.spark)}</td>
       <td class="der num">${fmtNum(p.cantidad)}</td>
       <td class="der num">${fmtDinero(p.costoPromedio)}</td>
@@ -316,6 +316,8 @@ function borrarPred(id) {
 document.addEventListener('click', (e) => {
   const ab = e.target.closest('[data-abrir-modal]'); if (ab) { abrirModal(ab.dataset.abrirModal); return; }
   const del = e.target.closest('[data-borrar]'); if (del) { if (modoDemo) { avisoDemo(); return; } if (del.dataset.borrar === 'pos') borrarPosicion(del.dataset.sim); else borrarPred(del.dataset.id); return; }
+  const filaPos = e.target.closest('#cuerpoPosiciones tr');
+  if (filaPos && filaPos.dataset.sim) { abrirGrafico(filaPos.dataset.sim); return; }
   const inf = e.target.closest('[data-info]'); const pop = document.getElementById('popInfo');
   if (inf) { pop.textContent = inf.dataset.info; pop.hidden = false; const r = inf.getBoundingClientRect(); pop.style.top = (r.bottom + 8) + 'px'; pop.style.left = Math.min(r.left, innerWidth - 262) + 'px'; return; }
   pop.hidden = true;
@@ -396,6 +398,93 @@ const ESTADO_DEMO = {
 function entrarDemo() { modoDemo = true; ESTADO = ESTADO_DEMO; document.getElementById('bannerDemo').hidden = false; pintarTodo(ESTADO_DEMO); }
 document.getElementById('btnSalirDemo').addEventListener('click', () => { localStorage.setItem('cartera_tour_visto', '1'); cargar(); });
 const _verDemo = document.getElementById('btnVerDemo'); if (_verDemo) _verDemo.addEventListener('click', entrarDemo);
+
+// ---------- Gráfico grande (estilo MarketWatch) ----------
+const mg = {
+  modal: document.getElementById('modalGrafico'),
+  svg: document.getElementById('mgGrafico'),
+  wrap: document.getElementById('mgWrap'),
+  tooltip: document.getElementById('mgTooltip'),
+  cargando: document.getElementById('mgCargando'),
+  simbolo: null, rango: '1d', puntos: [], W: 600, H: 280, pad: 10, timer: null,
+  x: (i) => i, y: (v) => v,
+};
+async function abrirGrafico(simbolo) {
+  mg.simbolo = simbolo; mg.rango = '1d';
+  document.getElementById('mgSimbolo').textContent = simbolo;
+  document.getElementById('mgPrecio').textContent = '';
+  document.getElementById('mgCambio').textContent = '';
+  document.querySelectorAll('#mgRangos .rango').forEach((b) => b.classList.toggle('activa', b.dataset.r === '1d'));
+  mg.modal.hidden = false;
+  await cargarGrafico();
+  clearInterval(mg.timer);
+  mg.timer = setInterval(() => { if (!mg.modal.hidden && !document.hidden) cargarGrafico(true); }, 60000);
+}
+function cerrarGrafico() { mg.modal.hidden = true; clearInterval(mg.timer); mg.tooltip.hidden = true; }
+async function cargarGrafico(silencioso) {
+  if (!silencioso) mg.cargando.hidden = false;
+  try {
+    const r = await fetch(`/api/historial?simbolo=${encodeURIComponent(mg.simbolo)}&rango=${mg.rango}`);
+    const d = await r.json();
+    mg.cargando.hidden = true;
+    mg.puntos = d.puntos || [];
+    if (d.moneda) MONEDA = d.moneda;
+    const precio = d.precio != null ? d.precio : (mg.puntos.length ? mg.puntos[mg.puntos.length - 1].c : null);
+    const base = mg.puntos.length ? mg.puntos[0].c : (d.cierreAnterior != null ? d.cierreAnterior : null);
+    document.getElementById('mgPrecio').textContent = precio != null ? fmtDinero(precio) : '—';
+    const camb = document.getElementById('mgCambio');
+    if (precio != null && base != null && base !== 0) {
+      const dif = precio - base, pct = (dif / base) * 100;
+      camb.textContent = (dif >= 0 ? '▲ ' : '▼ ') + fmtPct(pct);
+      camb.className = 'num ' + clase(dif);
+    } else camb.textContent = '';
+    dibujarGrafico();
+  } catch {
+    mg.cargando.hidden = true;
+    mg.svg.innerHTML = `<text x="300" y="140" text-anchor="middle" fill="${COL.faint}" font-size="14">No se pudo cargar</text>`;
+  }
+}
+function dibujarGrafico() {
+  const p = mg.puntos, W = mg.W, H = mg.H, pad = mg.pad;
+  if (!p || p.length < 2) { mg.svg.innerHTML = `<text x="300" y="140" text-anchor="middle" fill="${COL.faint}" font-size="14">Sin datos para este rango</text>`; return; }
+  const vals = p.map((x) => x.c), min = Math.min(...vals), max = Math.max(...vals), rg = (max - min) || 1;
+  mg.x = (i) => pad + (i / (p.length - 1)) * (W - 2 * pad);
+  mg.y = (v) => H - pad - ((v - min) / rg) * (H - 2 * pad);
+  let d = '';
+  p.forEach((pt, i) => { d += (i ? 'L' : 'M') + mg.x(i).toFixed(1) + ',' + mg.y(pt.c).toFixed(1) + ' '; });
+  const area = d + 'L' + mg.x(p.length - 1).toFixed(1) + ',' + H + ' L' + mg.x(0).toFixed(1) + ',' + H + ' Z';
+  const c = vals[vals.length - 1] >= vals[0] ? COL.green : COL.red;
+  mg.svg.innerHTML = `<defs><linearGradient id="mgGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c}" stop-opacity="0.35"/><stop offset="1" stop-color="${c}" stop-opacity="0"/></linearGradient></defs>
+    <path d="${area}" fill="url(#mgGrad)"/>
+    <path id="mgLinea" d="${d}" fill="none" stroke="${c}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+    <line id="mgCross" y1="0" y2="${H}" stroke="${COL.muted}" stroke-width="1" stroke-dasharray="4 4" opacity="0" vector-effect="non-scaling-stroke"/>
+    <circle id="mgDot" r="4" fill="${c}" stroke="#0a1122" stroke-width="2" opacity="0"/>`;
+  if (!reducedMotion) { const l = mg.svg.querySelector('#mgLinea'); const len = l.getTotalLength(); l.style.strokeDasharray = len; l.style.strokeDashoffset = len; requestAnimationFrame(() => { l.style.transition = 'stroke-dashoffset 1s cubic-bezier(0.16,1,0.3,1)'; l.style.strokeDashoffset = 0; }); }
+}
+function hoverGrafico(e) {
+  const p = mg.puntos; if (!p || p.length < 2) return;
+  const rect = mg.wrap.getBoundingClientRect();
+  let fx = (e.clientX - rect.left) / rect.width; fx = Math.max(0, Math.min(1, fx));
+  const i = Math.round(fx * (p.length - 1)), pt = p[i]; if (!pt) return;
+  const cross = mg.svg.querySelector('#mgCross'), dot = mg.svg.querySelector('#mgDot');
+  if (cross) { cross.setAttribute('x1', mg.x(i)); cross.setAttribute('x2', mg.x(i)); cross.setAttribute('opacity', '1'); }
+  if (dot) { dot.setAttribute('cx', mg.x(i)); dot.setAttribute('cy', mg.y(pt.c)); dot.setAttribute('opacity', '1'); }
+  const fecha = new Date(pt.t);
+  const fstr = (mg.rango === '1d' || mg.rango === '5d')
+    ? fecha.toLocaleString('es', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+    : fecha.toLocaleDateString('es', { day: '2-digit', month: 'short', year: '2-digit' });
+  mg.tooltip.innerHTML = '<b>' + fmtDinero(pt.c) + '</b><div class="mg-fecha">' + fstr + '</div>';
+  mg.tooltip.hidden = false;
+  mg.tooltip.style.left = ((i / (p.length - 1)) * rect.width) + 'px';
+  mg.tooltip.style.top = ((mg.y(pt.c) / mg.H) * rect.height) + 'px';
+}
+function salirHover() { mg.tooltip.hidden = true; const c = mg.svg.querySelector('#mgCross'), d = mg.svg.querySelector('#mgDot'); if (c) c.setAttribute('opacity', '0'); if (d) d.setAttribute('opacity', '0'); }
+document.getElementById('cerrarGrafico').addEventListener('click', cerrarGrafico);
+mg.modal.addEventListener('click', (e) => { if (e.target === mg.modal) cerrarGrafico(); });
+document.getElementById('mgRangos').addEventListener('click', (e) => { const b = e.target.closest('.rango'); if (!b) return; mg.rango = b.dataset.r; document.querySelectorAll('#mgRangos .rango').forEach((x) => x.classList.toggle('activa', x === b)); cargarGrafico(); });
+mg.wrap.addEventListener('mousemove', hoverGrafico);
+mg.wrap.addEventListener('mouseleave', salirHover);
+mg.wrap.addEventListener('touchmove', (e) => { if (e.touches[0]) hoverGrafico(e.touches[0]); }, { passive: true });
 
 // ---------- Arranque ----------
 async function init() {

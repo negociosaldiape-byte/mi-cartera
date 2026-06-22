@@ -446,6 +446,32 @@ const servidor = http.createServer(async (req, res) => {
       return enviarJSON(res, 200, { simbolo, precio: info.precio, moneda: info.moneda, error: !!info.error });
     }
 
+    if (ruta === '/api/historial' && req.method === 'GET') {
+      const simbolo = (u.searchParams.get('simbolo') || '').toUpperCase().trim();
+      const rango = u.searchParams.get('rango') || '1d';
+      if (!simbolo) return enviarJSON(res, 400, { error: 'Falta simbolo' });
+      const mapa = { '1d': ['1d', '5m'], '5d': ['5d', '30m'], '1m': ['1mo', '1d'], '6m': ['6mo', '1d'], '1a': ['1y', '1wk'] };
+      const [range, interval] = mapa[rango] || mapa['1d'];
+      try {
+        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(simbolo)}?interval=${interval}&range=${range}`;
+        const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+        const j = await r.json();
+        const result = j && j.chart && j.chart.result && j.chart.result[0];
+        if (!result) throw new Error('Sin datos');
+        const ts = result.timestamp || [];
+        const q = (result.indicators && result.indicators.quote && result.indicators.quote[0]) || {};
+        const puntos = [];
+        for (let i = 0; i < ts.length; i++) {
+          const c = q.close ? q.close[i] : null;
+          if (typeof c === 'number') puntos.push({ t: ts[i] * 1000, c });
+        }
+        const meta = result.meta || {};
+        return enviarJSON(res, 200, { simbolo, rango, moneda: meta.currency || 'USD', precio: (typeof meta.regularMarketPrice === 'number' ? meta.regularMarketPrice : null), cierreAnterior: (typeof meta.chartPreviousClose === 'number' ? meta.chartPreviousClose : null), puntos });
+      } catch (e) {
+        return enviarJSON(res, 200, { simbolo, rango, puntos: [], error: true });
+      }
+    }
+
     // Archivos estaticos (solo desde /public)
     const archivo = ruta === '/' ? 'index.html' : decodeURIComponent(ruta.slice(1));
     const rutaAbs = path.join(CARPETA_PUBLICA, archivo);

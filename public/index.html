@@ -254,6 +254,34 @@
   <!-- Popover info -->
   <div id="popInfo" class="pop-info" hidden></div>
 
+  <!-- Modal de gráfico grande -->
+  <div id="modalGrafico" class="modal-fondo" hidden>
+    <div class="modal modal-grafico" role="dialog" aria-modal="true">
+      <div class="modal-head">
+        <div>
+          <h3 id="mgSimbolo">—</h3>
+          <p class="mg-sub"><span id="mgPrecio" class="num"></span> <span id="mgCambio" class="num"></span></p>
+        </div>
+        <button id="cerrarGrafico" class="icono-btn" aria-label="Cerrar">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="rangos" id="mgRangos">
+        <button data-r="1d" class="rango activa">1D</button>
+        <button data-r="5d" class="rango">5D</button>
+        <button data-r="1m" class="rango">1M</button>
+        <button data-r="6m" class="rango">6M</button>
+        <button data-r="1a" class="rango">1A</button>
+      </div>
+      <div class="grafico-grande-wrap" id="mgWrap">
+        <svg id="mgGrafico" viewBox="0 0 600 280" preserveAspectRatio="none" aria-label="Gráfico del activo"></svg>
+        <div id="mgTooltip" class="mg-tooltip" hidden></div>
+        <div id="mgCargando" class="mg-cargando">Cargando…</div>
+      </div>
+      <p class="mg-pie">Datos con ~15 min de retraso · se actualiza solo cada minuto</p>
+    </div>
+  </div>
+
   <!-- Toasts -->
   <div id="toasts" class="toasts" aria-live="polite"></div>
 

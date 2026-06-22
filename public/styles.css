@@ -301,6 +301,25 @@ input::placeholder { color: var(--faint); }
   .donut-wrap { flex-direction: column; }
 }
 
+/* ---------- Modal de gráfico grande ---------- */
+.modal-grafico { max-width: 680px; }
+.mg-sub { margin: 4px 0 0; font-size: 1rem; }
+#mgPrecio { font-family: var(--fuente-display); font-weight: 700; font-size: 1.2rem; }
+.rangos { display: flex; gap: 6px; margin: 4px 0 16px; }
+.rango { flex: 1; border: 1px solid var(--border); background: var(--surface); color: var(--muted); padding: 8px; border-radius: 9px; cursor: pointer; font-family: var(--fuente); font-weight: 700; font-size: 0.82rem; transition: all 0.15s; }
+.rango:hover { color: var(--text); border-color: var(--border-fuerte); }
+.rango.activa { background: var(--accent); color: white; border-color: transparent; }
+.grafico-grande-wrap { position: relative; height: 280px; width: 100%; cursor: crosshair; }
+#mgGrafico { width: 100%; height: 100%; overflow: visible; display: block; }
+.mg-tooltip { position: absolute; pointer-events: none; background: var(--surface-solid); border: 1px solid var(--border-fuerte); border-radius: 9px; padding: 7px 10px; font-size: 0.8rem; box-shadow: 0 8px 24px rgba(0,0,0,0.5); transform: translate(-50%, -130%); white-space: nowrap; z-index: 5; }
+.mg-tooltip b { font-family: var(--fuente-display); }
+.mg-tooltip .mg-fecha { color: var(--muted); font-size: 0.72rem; }
+.mg-cargando { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: 0.9rem; }
+.mg-pie { text-align: center; color: var(--faint); font-size: 0.76rem; margin: 12px 0 0; }
+.fila-clic { cursor: pointer; }
+.ver-grafico { color: var(--faint); font-size: 0.72rem; }
+tbody tr:hover .ver-grafico { color: var(--accent); }
+
 /* ---------- Reduced motion ---------- */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
