@@ -87,8 +87,16 @@ function leerArchivo() {
   catch { return datosVacios(); }
 }
 
-function leerDatos() {
-  return USA_NUBE ? normaliza(DATOS) : leerArchivo();
+async function leerDatos() {
+  if (!USA_NUBE) return leerArchivo();
+  // Leer SIEMPRE fresco de Upstash: evita pisar cambios externos (siembra, otra pestaña, otro dispositivo).
+  try {
+    const j = await upstashComando(['GET', CLAVE_DATOS]);
+    DATOS = j && j.result ? normaliza(JSON.parse(j.result)) : datosVacios();
+  } catch (e) {
+    console.error('[datos] No se pudo leer Upstash, uso copia en memoria:', e.message);
+  }
+  return normaliza(DATOS);
 }
 function guardarDatos(d) {
   d = normaliza(d);
@@ -290,7 +298,7 @@ async function resumenPestana(p) {
 }
 
 async function construirEstado(idPortafolio) {
-  const datos = leerDatos();
+  const datos = await leerDatos();
   const cfg = leerConfig();
   const p = getPortafolio(datos, idPortafolio);
   const { posiciones, realizado } = calcularPosiciones(p.operaciones);
@@ -349,6 +357,7 @@ async function construirEstado(idPortafolio) {
   }
 
   return {
+    srv: 'mp2',
     moneda: cfg.monedaBase || 'USD',
     proveedor: (cfg.proveedorPrecios === 'finnhub' && cfg.apiKeyFinnhub) ? 'Finnhub (tu llave)' : 'Yahoo (gratis, con retraso)',
     actualizado: new Date().toLocaleString('es'),
@@ -433,7 +442,7 @@ const servidor = http.createServer(async (req, res) => {
     if (ruta === '/api/operaciones' && req.method === 'POST') {
       const b = await leerCuerpo(req);
       if (!b.simbolo || !b.cantidad || !b.precio) return enviarJSON(res, 400, { error: 'Faltan datos (simbolo, cantidad, precio).' });
-      const datos = leerDatos();
+      const datos = await leerDatos();
       const pf = getPortafolio(datos, b.portafolio);
       pf.operaciones.push({
         id: nuevoId(),
@@ -451,7 +460,7 @@ const servidor = http.createServer(async (req, res) => {
 
     if (ruta === '/api/operaciones' && req.method === 'DELETE') {
       const id = u.searchParams.get('id');
-      const datos = leerDatos();
+      const datos = await leerDatos();
       const pf = getPortafolio(datos, u.searchParams.get('portafolio'));
       pf.operaciones = pf.operaciones.filter((o) => o.id !== id);
       guardarDatos(datos);
@@ -463,7 +472,7 @@ const servidor = http.createServer(async (req, res) => {
       if (!b.simbolo || !b.direccion) return enviarJSON(res, 400, { error: 'Faltan datos (simbolo, direccion).' });
       const simbolo = String(b.simbolo).toUpperCase().trim();
       const info = await obtenerPrecio(simbolo);
-      const datos = leerDatos();
+      const datos = await leerDatos();
       const pf = getPortafolio(datos, b.portafolio);
       pf.predicciones.push({
         id: nuevoId(),
@@ -485,7 +494,7 @@ const servidor = http.createServer(async (req, res) => {
 
     if (ruta === '/api/predicciones' && req.method === 'DELETE') {
       const id = u.searchParams.get('id');
-      const datos = leerDatos();
+      const datos = await leerDatos();
       const pf = getPortafolio(datos, u.searchParams.get('portafolio'));
       pf.predicciones = pf.predicciones.filter((q) => q.id !== id);
       guardarDatos(datos);
