@@ -69,6 +69,7 @@ function pintarTodo(e) {
   pintarHeroe(e.resumen);
   pintarKPIs(e.resumen);
   pintarProyeccion(e.proyeccion);
+  pintarVigilantes(e.vigilantes);
   construirArea(e.historico);
   construirDonut(e.posiciones);
   construirAnillo(e.marcador);
@@ -168,6 +169,27 @@ function pintarProyeccion(pr) {
   if (!pr) { ['', 'A'].forEach((s) => { const el = document.getElementById('proyeccion' + s); if (el) el.hidden = true; }); return; }
   pintarUnaProy('', pr, pr.generado);          // 30 días (campos al nivel raíz)
   pintarUnaProy('A', pr.anual, pr.generado);   // 1 año (sub-objeto .anual)
+}
+
+// ---------- Vigilantes (agentes) ----------
+function pintarVigilantes(v) {
+  const sec = document.getElementById('vigilantes');
+  if (!sec) return;
+  if (!v || !Array.isArray(v.agentes) || !v.agentes.length) { sec.hidden = true; return; }
+  sec.hidden = false;
+  const dot = (estado) => estado === 'alerta' ? 'alerta' : (estado === 'inactivo' ? 'inactivo' : 'ok');
+  const etiq = (estado) => estado === 'alerta' ? 'novedad' : (estado === 'inactivo' ? 'en pausa' : 'todo en orden');
+  document.getElementById('vigGrid').innerHTML = v.agentes.map((a) => `
+    <div class="vig-card vig-${dot(a.estado)}">
+      <div class="vig-top">
+        <span class="vig-emoji">${esc(a.emoji || '🐺')}</span>
+        <span class="vig-nombre">${esc(a.nombre || '')}</span>
+        <span class="vig-estado e-${dot(a.estado)}">${etiq(a.estado)}</span>
+      </div>
+      <div class="vig-resumen">${esc(a.resumen || '')}</div>
+    </div>`).join('');
+  const c = document.getElementById('vigCuando');
+  if (c) c.textContent = v.generado ? ('Última ronda: ' + new Date(v.generado).toLocaleString('es', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })) : '';
 }
 
 // ---------- Gráfico de área (evolución) ----------
@@ -404,6 +426,7 @@ document.addEventListener('keydown', (e) => {
 const PASOS = [
   { sel: '[data-tour="heroe"]', t: 'Tu cartera de un vistazo', x: 'Aquí ves cuánto vale todo tu dinero hoy y cuánto has ganado o perdido en total.' },
   { sel: '[data-tour="proyeccion"]', t: 'Tu plata en 30 días', x: 'Mi proyección de cuánto podría valer tu cartera en un mes, con su rango probable (de menos a más). Se actualiza sola cada 2 días.' },
+  { sel: '[data-tour="vigilantes"]', t: 'Tus vigilantes', x: 'Agentes que cuidan distintas áreas: movimientos fuertes, riesgo (concentración y caídas) y tus lecturas. Revisan solos y te avisan al correo si pasa algo.' },
   { sel: '[data-tour="reparto"]', t: '¿Dónde está tu dinero?', x: 'La dona muestra en qué activos está repartida tu plata. De un vistazo sabes si estás muy cargado en una sola cosa.' },
   { sel: '[data-tour="marcador"]', t: 'El marcador del bróker', x: 'Cada lectura (sube o baja) se anota con fecha. Al cumplir su plazo, el panel marca solo si acertó o falló. Este es mi porcentaje real de aciertos: sin trampa.' },
   { sel: '[data-tour="posiciones"]', t: 'Tus posiciones', x: 'Cada cosa que compraste, con su precio de ahora, su mini-gráfica de 5 días y tu ganancia en vivo.' },
@@ -458,6 +481,12 @@ const ESTADO_DEMO = {
     { id: 'd2', simbolo: 'TSLA', direccion: 'sube', probabilidad: 60, plazoDias: 14, razon: 'entregas del trimestre', fechaCreacion: '2026-06-15', precioInicial: 268, estado: 'abierta', autor: 'claude' },
   ],
   marcador: { total: 1, aciertos: 1, tasa: 100, abiertas: 1 },
+  vigilantes: { generado: '2026-06-21T14:30:00Z', agentes: [
+    { id: 'movimientos', nombre: 'Vigía de Movimientos', emoji: '📡', estado: 'alerta', resumen: '1 movimiento fuerte hoy: BTC-USD ▲8.2%' },
+    { id: 'riesgo', nombre: 'Vigía de Riesgo', emoji: '🛡️', estado: 'ok', resumen: 'Concentración OK (máx BTC-USD 34%). Día: +1.2%.' },
+    { id: 'marcador', nombre: 'Vigía del Marcador', emoji: '🎯', estado: 'ok', resumen: '1 lectura abierta en vigilancia. Te aviso cuando cumpla su plazo.' },
+    { id: 'politicos', nombre: 'Vigía de Políticos', emoji: '🏛️', estado: 'inactivo', resumen: 'En pausa: necesita una fuente de datos para activarse.' },
+  ] },
   historico: [
     { fecha: '2026-06-14', valorTotal: 9100 }, { fecha: '2026-06-15', valorTotal: 9320 }, { fecha: '2026-06-16', valorTotal: 9210 },
     { fecha: '2026-06-17', valorTotal: 9580 }, { fecha: '2026-06-18', valorTotal: 9760 }, { fecha: '2026-06-19', valorTotal: 10010 },

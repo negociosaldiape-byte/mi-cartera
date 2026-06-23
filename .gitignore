@@ -2,6 +2,7 @@ node_modules/
 data.json
 config.json
 proyeccion.json
+vigilantes.json
 .playwright-mcp/
 *.png
 *.log

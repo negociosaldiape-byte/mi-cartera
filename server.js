@@ -129,6 +129,15 @@ async function leerProyeccion() {
   catch { return null; }
 }
 
+async function leerVigilantes() {
+  if (USA_NUBE) {
+    try { const j = await upstashComando(['GET', 'vigilantes']); return j && j.result ? JSON.parse(j.result) : null; }
+    catch { return null; }
+  }
+  try { return JSON.parse(fs.readFileSync(path.join(RAIZ, 'vigilantes.json'), 'utf8')); }
+  catch { return null; }
+}
+
 function nuevoId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
@@ -367,10 +376,12 @@ async function construirEstado(idPortafolio) {
 
   const _pr = await leerProyeccion();
   const proyeccion = (_pr && _pr.portafolios && _pr.portafolios[p.id]) ? { generado: _pr.generado, horizonteDias: _pr.horizonteDias || 30, ..._pr.portafolios[p.id] } : null;
+  const vigilantes = await leerVigilantes();
 
   return {
     srv: 'mp2',
     proyeccion,
+    vigilantes,
     moneda: cfg.monedaBase || 'USD',
     proveedor: (cfg.proveedorPrecios === 'finnhub' && cfg.apiKeyFinnhub) ? 'Finnhub (tu llave)' : 'Yahoo (gratis, con retraso)',
     actualizado: new Date().toLocaleString('es'),

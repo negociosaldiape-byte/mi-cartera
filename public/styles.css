@@ -198,6 +198,26 @@ body {
 .proy-esc-cambio { font-size: 0.84rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 .proy-pie { color: var(--faint); font-size: 0.78rem; margin: 14px 0 0; }
 
+/* ---------- Vigilantes (agentes) ---------- */
+.vigilantes { margin-bottom: 20px; }
+.vig-cab { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.vig-titulo { font-family: var(--fuente-display); font-weight: 700; font-size: 1.05rem; display: flex; align-items: center; gap: 8px; }
+.vig-badge { font-family: var(--fuente-base); font-size: 0.72rem; font-weight: 700; color: var(--accent); background: rgba(108,140,255,0.14); padding: 2px 9px; border-radius: 999px; }
+.vig-cuando { color: var(--faint); font-size: 0.82rem; }
+.vig-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.vig-card { padding: 14px 16px; border: 1px solid var(--border); border-left: 3px solid var(--faint); border-radius: var(--radio-sm); background: var(--surface); }
+.vig-card.vig-ok { border-left-color: var(--green); }
+.vig-card.vig-alerta { border-left-color: var(--red); background: linear-gradient(135deg, rgba(255,92,108,0.08), var(--surface)); }
+.vig-card.vig-inactivo { border-left-color: var(--faint); opacity: 0.72; }
+.vig-top { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+.vig-emoji { font-size: 1.1rem; }
+.vig-nombre { font-weight: 700; font-size: 0.95rem; flex: 1; }
+.vig-estado { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.vig-estado.e-ok { color: var(--green); background: var(--green-soft); }
+.vig-estado.e-alerta { color: var(--red); background: var(--red-soft); }
+.vig-estado.e-inactivo { color: var(--faint); background: rgba(255,255,255,0.06); }
+.vig-resumen { color: var(--muted); font-size: 0.85rem; line-height: 1.45; }
+
 /* ---------- Gráficos ---------- */
 .graficos { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; margin-bottom: 20px; }
 .grafico-card { padding: 20px; }
@@ -347,6 +367,7 @@ input::placeholder { color: var(--faint); }
   .heroe { grid-template-columns: 1fr; }
   .graficos { grid-template-columns: 1fr; }
   .proy-grid { grid-template-columns: 1fr; }
+  .vig-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 640px) {
   .app { padding: 18px 14px 110px; }
