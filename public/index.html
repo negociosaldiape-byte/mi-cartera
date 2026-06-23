@@ -78,36 +78,68 @@
     <!-- KPIs -->
     <section class="kpis" id="kpis"></section>
 
-    <!-- Proyección a 30 días -->
-    <section class="proyeccion" id="proyeccion" hidden data-tour="proyeccion">
-      <div class="proy-cab">
-        <span class="proy-titulo">Tu plata en 30 días <span class="proy-badge">análisis 🐺</span></span>
-        <span class="proy-hoy" id="proyHoy"></span>
-      </div>
-      <div class="proy-probable">
-        <div class="proy-prob-izq">
-          <span class="proy-prob-label">🎯 Lo más probable</span>
-          <span class="proy-prob-sub">dentro de 30 días</span>
+    <!-- Proyecciones: 30 días + 1 año, lado a lado -->
+    <div class="proy-grid">
+      <section class="proyeccion" id="proyeccion" hidden data-tour="proyeccion">
+        <div class="proy-cab">
+          <span class="proy-titulo">Tu plata en 30 días <span class="proy-badge">análisis 🐺</span></span>
+          <span class="proy-hoy" id="proyHoy"></span>
         </div>
-        <div class="proy-prob-der">
-          <span class="proy-prob-valor num" id="proyValor">—</span>
-          <span class="proy-prob-cambio" id="proyCambio"></span>
+        <div class="proy-probable">
+          <div class="proy-prob-izq">
+            <span class="proy-prob-label">🎯 Lo más probable</span>
+            <span class="proy-prob-sub">dentro de 30 días</span>
+          </div>
+          <div class="proy-prob-der">
+            <span class="proy-prob-valor num" id="proyValor">—</span>
+            <span class="proy-prob-cambio" id="proyCambio"></span>
+          </div>
         </div>
-      </div>
-      <div class="proy-escenarios">
-        <div class="proy-esc">
-          <span class="proy-esc-label">📈 Si va bien</span>
-          <span class="proy-esc-valor num" id="proyBienValor">—</span>
-          <span class="proy-esc-cambio" id="proyBienCambio"></span>
+        <div class="proy-escenarios">
+          <div class="proy-esc">
+            <span class="proy-esc-label">📈 Si va bien</span>
+            <span class="proy-esc-valor num" id="proyBienValor">—</span>
+            <span class="proy-esc-cambio" id="proyBienCambio"></span>
+          </div>
+          <div class="proy-esc">
+            <span class="proy-esc-label">📉 Si va mal</span>
+            <span class="proy-esc-valor num" id="proyMalValor">—</span>
+            <span class="proy-esc-cambio" id="proyMalCambio"></span>
+          </div>
         </div>
-        <div class="proy-esc">
-          <span class="proy-esc-label">📉 Si va mal</span>
-          <span class="proy-esc-valor num" id="proyMalValor">—</span>
-          <span class="proy-esc-cambio" id="proyMalCambio"></span>
+        <p class="proy-pie"><span id="proyFecha"></span> · estimación, no garantía</p>
+      </section>
+
+      <section class="proyeccion proy-anual" id="proyeccionA" hidden>
+        <div class="proy-cab">
+          <span class="proy-titulo">Tu plata en 1 año <span class="proy-badge">largo plazo 📈</span></span>
+          <span class="proy-hoy" id="proyHoyA"></span>
         </div>
-      </div>
-      <p class="proy-pie"><span id="proyFecha"></span> · estimación, no garantía</p>
-    </section>
+        <div class="proy-probable">
+          <div class="proy-prob-izq">
+            <span class="proy-prob-label">🎯 Lo más probable</span>
+            <span class="proy-prob-sub">dentro de 1 año</span>
+          </div>
+          <div class="proy-prob-der">
+            <span class="proy-prob-valor num" id="proyValorA">—</span>
+            <span class="proy-prob-cambio" id="proyCambioA"></span>
+          </div>
+        </div>
+        <div class="proy-escenarios">
+          <div class="proy-esc">
+            <span class="proy-esc-label">📈 Si va bien</span>
+            <span class="proy-esc-valor num" id="proyBienValorA">—</span>
+            <span class="proy-esc-cambio" id="proyBienCambioA"></span>
+          </div>
+          <div class="proy-esc">
+            <span class="proy-esc-label">📉 Si va mal</span>
+            <span class="proy-esc-valor num" id="proyMalValorA">—</span>
+            <span class="proy-esc-cambio" id="proyMalCambioA"></span>
+          </div>
+        </div>
+        <p class="proy-pie"><span id="proyFechaA"></span> · estimación, no garantía</p>
+      </section>
+    </div>
 
     <!-- GRÁFICOS -->
     <section class="graficos">

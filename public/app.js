@@ -144,24 +144,30 @@ function pintarKPIs(r) {
   if (mes.disponible) { const m = document.getElementById('kpiMes'); setNum(m, 'mes', mes.valor, fmtDinero); const cm = clase(mes.valor); if (cm) m.classList.add(cm); }
 }
 
-// ---------- Proyección 30 días ----------
-function pintarProyeccion(pr) {
-  const sec = document.getElementById('proyeccion');
+// ---------- Proyección (30 días + 1 año) ----------
+// suf = '' para 30 días, 'A' para 1 año. Mismo formato de datos en ambos.
+function pintarUnaProy(suf, datos, generado) {
+  const sec = document.getElementById('proyeccion' + suf);
   if (!sec) return;
-  if (!pr || pr.esperado == null || pr.valorHoy == null) { sec.hidden = true; return; }
+  if (!datos || datos.esperado == null || datos.valorHoy == null) { sec.hidden = true; return; }
   sec.hidden = false;
-  const hoy = pr.valorHoy;
+  const hoy = datos.valorHoy;
   const cambio = (v) => (v - hoy >= 0 ? 'ganas ' : 'pierdes ') + fmtDinero(Math.abs(v - hoy));
-  document.getElementById('proyHoy').innerHTML = 'Hoy: <strong>' + fmtDinero(hoy) + '</strong>';
-  setNum(document.getElementById('proyValor'), 'proy', pr.esperado, fmtDinero);
-  const cb = document.getElementById('proyCambio');
-  cb.textContent = cambio(pr.esperado); cb.className = 'proy-prob-cambio ' + clase(pr.esperado - hoy);
-  document.getElementById('proyBienValor').textContent = fmtDinero(pr.optimista);
-  const bc = document.getElementById('proyBienCambio'); bc.textContent = cambio(pr.optimista); bc.className = 'proy-esc-cambio ' + clase(pr.optimista - hoy);
-  document.getElementById('proyMalValor').textContent = fmtDinero(pr.pesimista);
-  const mc = document.getElementById('proyMalCambio'); mc.textContent = cambio(pr.pesimista); mc.className = 'proy-esc-cambio ' + clase(pr.pesimista - hoy);
-  const f = document.getElementById('proyFecha');
-  f.textContent = pr.generado ? ('Actualizado ' + new Date(pr.generado).toLocaleDateString('es', { day: '2-digit', month: 'short' })) : '';
+  document.getElementById('proyHoy' + suf).innerHTML = 'Hoy: <strong>' + fmtDinero(hoy) + '</strong>';
+  setNum(document.getElementById('proyValor' + suf), 'proy' + suf, datos.esperado, fmtDinero);
+  const cb = document.getElementById('proyCambio' + suf);
+  cb.textContent = cambio(datos.esperado); cb.className = 'proy-prob-cambio ' + clase(datos.esperado - hoy);
+  document.getElementById('proyBienValor' + suf).textContent = fmtDinero(datos.optimista);
+  const bc = document.getElementById('proyBienCambio' + suf); bc.textContent = cambio(datos.optimista); bc.className = 'proy-esc-cambio ' + clase(datos.optimista - hoy);
+  document.getElementById('proyMalValor' + suf).textContent = fmtDinero(datos.pesimista);
+  const mc = document.getElementById('proyMalCambio' + suf); mc.textContent = cambio(datos.pesimista); mc.className = 'proy-esc-cambio ' + clase(datos.pesimista - hoy);
+  const f = document.getElementById('proyFecha' + suf);
+  if (f) f.textContent = generado ? ('Actualizado ' + new Date(generado).toLocaleDateString('es', { day: '2-digit', month: 'short' })) : '';
+}
+function pintarProyeccion(pr) {
+  if (!pr) { ['', 'A'].forEach((s) => { const el = document.getElementById('proyeccion' + s); if (el) el.hidden = true; }); return; }
+  pintarUnaProy('', pr, pr.generado);          // 30 días (campos al nivel raíz)
+  pintarUnaProy('A', pr.anual, pr.generado);   // 1 año (sub-objeto .anual)
 }
 
 // ---------- Gráfico de área (evolución) ----------
@@ -439,7 +445,7 @@ window.addEventListener('resize', () => { if (!document.getElementById('tour').h
 const ESTADO_DEMO = {
   moneda: 'USD', proveedor: 'datos de ejemplo', actualizado: '(demo)',
   resumen: { capitalInicial: 10000, invertido: 8400, valorActual: 10238, valorPosiciones: 10238, efectivo: 1600, valorTotal: 11838, gpTotal: 1838, gpTotalPct: 18.38, realizado: 120, cambioDia: 64, gananciaMes: { disponible: true, valor: 540 } },
-  proyeccion: { generado: '2026-06-21T00:00:00Z', horizonteDias: 30, valorHoy: 11838, esperado: 12450, pesimista: 11100, optimista: 13800, pctEsperado: 5.17 },
+  proyeccion: { generado: '2026-06-21T00:00:00Z', horizonteDias: 30, valorHoy: 11838, esperado: 12450, pesimista: 11100, optimista: 13800, pctEsperado: 5.17, anual: { valorHoy: 11838, esperado: 13050, pesimista: 9700, optimista: 16400, pctEsperado: 10.24 } },
   posiciones: [
     { simbolo: 'AAPL', cantidad: 15, costoPromedio: 150, precioActual: 182, moneda: 'USD', valor: 2730, gp: 480, gpPct: 21.3, cambioDia: 12, spark: [170, 172, 168, 176, 182], error: false },
     { simbolo: 'NVDA', cantidad: 10, costoPromedio: 110, precioActual: 138, moneda: 'USD', valor: 1380, gp: 280, gpPct: 25.5, cambioDia: 20, spark: [120, 128, 131, 135, 138], error: false },
