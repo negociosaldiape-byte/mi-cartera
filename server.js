@@ -138,6 +138,15 @@ async function leerVigilantes() {
   catch { return null; }
 }
 
+async function leerComite() {
+  if (USA_NUBE) {
+    try { const j = await upstashComando(['GET', 'comite']); return j && j.result ? JSON.parse(j.result) : null; }
+    catch { return null; }
+  }
+  try { return JSON.parse(fs.readFileSync(path.join(RAIZ, 'comite.json'), 'utf8')); }
+  catch { return null; }
+}
+
 function nuevoId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
@@ -461,6 +470,17 @@ const servidor = http.createServer(async (req, res) => {
 
     if (ruta === '/api/estado' && req.method === 'GET') {
       return enviarJSON(res, 200, await construirEstado(u.searchParams.get('portafolio')));
+    }
+
+    if (ruta === '/api/comite' && req.method === 'GET') {
+      return enviarJSON(res, 200, (await leerComite()) || { acciones: {} });
+    }
+    if (ruta === '/api/comite/reanalizar' && req.method === 'POST') {
+      try {
+        const hijo = require('child_process').spawn(process.execPath, [path.join(RAIZ, 'scripts', 'comite.js')], { env: process.env, stdio: 'ignore', detached: true });
+        hijo.unref();
+      } catch (e) { return enviarJSON(res, 500, { error: 'No se pudo lanzar el re-análisis' }); }
+      return enviarJSON(res, 202, { ok: true, mensaje: 'Re-análisis de números en marcha (~30s). Para las opiniones, pídeselas a Claude en el chat.' });
     }
 
     if (ruta === '/api/operaciones' && req.method === 'POST') {
