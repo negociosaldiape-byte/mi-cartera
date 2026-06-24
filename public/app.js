@@ -432,6 +432,7 @@ const PASOS = [
   { sel: '[data-tour="posiciones"]', t: 'Tus posiciones', x: 'Cada cosa que compraste, con su precio de ahora, su mini-gráfica de 5 días y tu ganancia en vivo.' },
   { sel: '[data-tour="lecturas"]', t: 'Las lecturas', x: 'Tus predicciones (o las que yo te dé en el chat) viven aquí con su resultado.' },
   { sel: '[data-tour="fab"]', t: 'Agregar es así de fácil', x: 'Toca el botón + para registrar una compra en segundos: escribe el nombre, el panel te trae el precio de ahora, y listo.' },
+  { sel: '#btnComite', t: 'Mi Comité 🏛️', x: 'Tu comité de analistas: toca aquí para ver, acción por acción, qué tan sólida está cada una (puntaje 0–100) y qué opina cada experto, con su porqué.' },
 ];
 let pasoIdx = 0;
 function iniciarTour() { pasoIdx = 0; document.getElementById('tour').hidden = false; mostrarPaso(); }
@@ -604,6 +605,143 @@ function bgElegir(i) { const x = bgItems[i]; if (!x) return; bgUl.hidden = true;
 bgUl.addEventListener('click', (e) => { const li = e.target.closest('li'); if (li) bgElegir(+li.dataset.i); });
 bgInput.addEventListener('keydown', (e) => { if (bgUl.hidden) return; if (e.key === 'ArrowDown') { e.preventDefault(); bgIdx = Math.min(bgIdx + 1, bgItems.length - 1); bgMarcar(); } else if (e.key === 'ArrowUp') { e.preventDefault(); bgIdx = Math.max(bgIdx - 1, 0); bgMarcar(); } else if (e.key === 'Enter' && bgIdx >= 0) { e.preventDefault(); bgElegir(bgIdx); } else if (e.key === 'Escape') bgUl.hidden = true; });
 function bgMarcar() { [...bgUl.children].forEach((li, i) => li.classList.toggle('activa', i === bgIdx)); }
+
+// ---------- Mi Comité (análisis por acción) ----------
+let COMITE = null;
+const AREAS = [
+  { k: 'valuacion', e: '🔍', n: 'Valuación' }, { k: 'riesgo', e: '🛡️', n: 'Riesgo' },
+  { k: 'moat', e: '🏰', n: 'Moat' }, { k: 'tecnico', e: '📈', n: 'Técnico' },
+  { k: 'macro', e: '🌎', n: 'Macro' }, { k: 'catalizadores', e: '📰', n: 'Catalizadores' },
+  { k: 'politicos', e: '🏛️', n: 'Políticos' }, { k: 'dividendos', e: '💵', n: 'Dividendos' },
+];
+const MOONSHOTS = new Set(['VRDN', 'RDW', 'CRML', 'SERV', 'RCAT', 'NNE']);
+function colorPuntaje(p) { return p == null ? COL.faint : (p >= 60 ? COL.green : (p >= 40 ? COL.accent : COL.red)); }
+function claseComite(p) { return p == null ? 'c-nd' : (p >= 60 ? 'c-ok' : (p >= 40 ? 'c-med' : 'c-mal')); }
+function veredictoCorto(a) {
+  if (a.director && a.director.veredicto) return a.director.veredicto;
+  const p = a.compuesto; if (p == null) return 'Sin datos';
+  return p >= 70 ? 'Sólida' : (p >= 60 ? 'Mantener' : (p >= 45 ? 'Vigilar' : (p >= 35 ? 'Especulativa' : 'Riesgo alto')));
+}
+function listaAcciones() { return (COMITE && COMITE.acciones) ? Object.values(COMITE.acciones) : []; }
+async function cargarComite() {
+  try { const r = await fetch('/api/comite'); COMITE = await r.json(); } catch { COMITE = { acciones: {} }; }
+  pintarTablero();
+}
+function verTablero() { document.getElementById('comiteInforme').hidden = true; document.getElementById('comiteComparar').hidden = true; document.getElementById('comiteTablero').hidden = false; }
+function mostrarComite() {
+  document.getElementById('vistaPanel').hidden = true;
+  document.getElementById('vistaComite').hidden = false;
+  verTablero(); window.scrollTo({ top: 0, behavior: reducedMotion ? 'auto' : 'smooth' });
+  if (!COMITE) cargarComite();
+}
+function mostrarPanel() { document.getElementById('vistaComite').hidden = true; document.getElementById('vistaPanel').hidden = false; }
+
+function pintarTablero() {
+  const grid = document.getElementById('comiteGrid'); if (!grid) return;
+  const q = (document.getElementById('comiteBuscar').value || '').trim().toUpperCase();
+  const orden = document.getElementById('comiteOrden').value;
+  let arr = listaAcciones().filter((a) => !q || a.simbolo.includes(q) || (a.nombre || '').toUpperCase().includes(q));
+  arr.sort((a, b) => orden === 'alfa' ? a.simbolo.localeCompare(b.simbolo) : (orden === 'peor' ? (a.compuesto == null ? 999 : a.compuesto) - (b.compuesto == null ? 999 : b.compuesto) : (b.compuesto == null ? -1 : b.compuesto) - (a.compuesto == null ? -1 : a.compuesto)));
+  if (!arr.length) { grid.innerHTML = '<p class="grafico-vacio">Aún no hay análisis. Toca "Re-analizar" o pídeme en el chat que arme el comité.</p>'; return; }
+  grid.innerHTML = arr.map((a) => {
+    const p = a.compuesto, col = colorPuntaje(p);
+    return `<button class="comite-card ${claseComite(p)}" data-sim="${esc(a.simbolo)}">
+      <div class="cc-top"><span class="cc-sim">${esc(a.simbolo)}</span><span class="cc-punt" style="color:${col}">${p == null ? '—' : p}</span></div>
+      <div class="cc-nombre">${esc((a.nombre || '').slice(0, 24))}</div>
+      <div class="cc-barra"><div style="width:${p == null ? 0 : p}%;background:${col}"></div></div>
+      <span class="cc-vered ${claseComite(p)}">${esc(veredictoCorto(a))}</span>
+    </button>`;
+  }).join('');
+  const g = document.getElementById('comiteGenerado');
+  if (g) g.textContent = (COMITE && COMITE.generado) ? ('Números actualizados: ' + new Date(COMITE.generado).toLocaleDateString('es', { day: '2-digit', month: 'short' })) : '';
+}
+
+function radarSVG(acc) {
+  const cx = 110, cy = 110, R = 80, N = AREAS.length;
+  const vals = AREAS.map((ar) => { const a = acc.analistas[ar.k]; return (a && typeof a.puntaje === 'number') ? a.puntaje : 0; });
+  const ang = (i) => -Math.PI / 2 + i * 2 * Math.PI / N;
+  const pt = (i, r) => [cx + r * Math.cos(ang(i)), cy + r * Math.sin(ang(i))];
+  let grid = '';
+  for (const f of [0.25, 0.5, 0.75, 1]) { const poly = AREAS.map((_, i) => pt(i, R * f).map((n) => n.toFixed(1)).join(',')).join(' '); grid += `<polygon points="${poly}" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>`; }
+  let axes = '', labels = '';
+  AREAS.forEach((ar, i) => { const [x, y] = pt(i, R); axes += `<line x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" stroke="rgba(255,255,255,0.08)"/>`; const [lx, ly] = pt(i, R + 16); labels += `<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" font-size="12" text-anchor="middle" dominant-baseline="middle">${ar.e}</text>`; });
+  const valPoly = AREAS.map((_, i) => pt(i, R * (vals[i] / 100)).map((n) => n.toFixed(1)).join(',')).join(' ');
+  return `<svg viewBox="0 0 220 220" class="radar" aria-label="Radar de las 8 áreas">${grid}${axes}<polygon points="${valPoly}" fill="${COL.accent}" fill-opacity="0.25" stroke="${COL.accent}" stroke-width="2"/>${labels}</svg>`;
+}
+
+function abrirInforme(sim) {
+  const a = COMITE && COMITE.acciones && COMITE.acciones[sim]; if (!a) return;
+  const cont = document.getElementById('comiteInforme'), dir = a.director || {}, p = a.compuesto, col = colorPuntaje(p);
+  const barras = AREAS.map((ar) => {
+    const an = a.analistas[ar.k] || {};
+    const punt = (an.estado === 'inactivo' || typeof an.puntaje !== 'number') ? null : an.puntaje;
+    const c = colorPuntaje(punt);
+    return `<div class="inf-fila" data-area="${ar.k}">
+      <div class="inf-fila-top">
+        <span class="inf-area">${ar.e} ${ar.n}</span>
+        <div class="inf-barra"><div style="width:${punt == null ? 0 : punt}%;background:${c}"></div></div>
+        <span class="inf-punt">${punt == null ? '<small>s/d</small>' : punt}</span>
+      </div>
+      <div class="inf-detalle">
+        <div class="inf-vered">${esc(an.veredicto || 'Sin datos')}</div>
+        ${(an.razones || []).map((r) => `<div class="inf-razon">· ${esc(r)}</div>`).join('')}
+        ${an.fuente === 'claude' ? '<span class="inf-fuente">opinión de Claude</span>' : (an.fuente === 'datos' ? '<span class="inf-fuente">cálculo de datos</span>' : '')}
+      </div>
+    </div>`;
+  }).join('');
+  const aviso = (MOONSHOTS.has(sim) || (p != null && p < 40)) ? '<p class="inf-aviso">⚠️ Acción especulativa: riesgo real de caer mucho o hasta a cero. Mantenla en tamaño chico.</p>' : '';
+  cont.innerHTML = `
+    <button class="btn-fantasma inf-volver">← Volver al tablero</button>
+    <div class="inf-banner ${claseComite(p)}">
+      <div class="inf-banner-izq">
+        <div class="inf-sim">${esc(a.simbolo)} <span class="inf-tipo">${a.tipoActivo === 'etf' ? 'fondo (ETF)' : 'acción'}</span></div>
+        <div class="inf-tesis">${esc(dir.tesis || 'Pídeme en el chat que genere las opiniones (moat, macro, catalizadores) para completar el veredicto del Director.')}</div>
+        ${dir.riesgoPrincipal ? `<div class="inf-riesgo"><strong>Riesgo principal:</strong> ${esc(dir.riesgoPrincipal)}</div>` : ''}
+      </div>
+      <div class="inf-banner-der"><div class="inf-comp" style="color:${col}">${p == null ? '—' : p}</div><div class="inf-vlabel">${esc(veredictoCorto(a))}</div>${dir.confianza ? `<div class="inf-conf">confianza ${dir.confianza}%</div>` : ''}</div>
+    </div>
+    <div class="inf-cuerpo">
+      <div class="inf-radar">${radarSVG(a)}<button class="btn-fantasma inf-grafico" data-sim="${esc(a.simbolo)}">📈 Ver gráfico de precio</button></div>
+      <div class="inf-barras">${barras}</div>
+    </div>
+    ${aviso}
+    <p class="comite-sello">Análisis probabilístico, no asesoría financiera licenciada.</p>`;
+  document.getElementById('comiteTablero').hidden = true; document.getElementById('comiteComparar').hidden = true; cont.hidden = false;
+  cont.scrollIntoView({ block: 'start', behavior: reducedMotion ? 'auto' : 'smooth' });
+}
+
+function pintarComparar() {
+  const cont = document.getElementById('comiteComparar'), arr = listaAcciones(); if (!arr.length) return;
+  const opts = arr.map((a) => `<option value="${esc(a.simbolo)}">${esc(a.simbolo)}</option>`).join('');
+  cont.innerHTML = `
+    <button class="btn-fantasma cmp-volver">← Volver al tablero</button>
+    <div class="cmp-selects"><select id="cmpA">${opts}</select><span class="cmp-vs">vs</span><select id="cmpB">${opts}</select></div>
+    <div class="cmp-cols" id="cmpCols"></div>`;
+  document.getElementById('cmpA').value = arr[0].simbolo; document.getElementById('cmpB').value = (arr[1] || arr[0]).simbolo;
+  const pintar = () => {
+    const A = COMITE.acciones[document.getElementById('cmpA').value], B = COMITE.acciones[document.getElementById('cmpB').value];
+    document.getElementById('cmpCols').innerHTML = [A, B].map((a) => `<div class="cmp-col"><div class="cmp-head"><span>${esc(a.simbolo)}</span><span style="color:${colorPuntaje(a.compuesto)}">${a.compuesto == null ? '—' : a.compuesto}</span></div>${radarSVG(a)}${AREAS.map((ar) => { const an = a.analistas[ar.k] || {}; const punt = typeof an.puntaje === 'number' ? an.puntaje : null; return `<div class="cmp-fila"><span>${ar.e} ${ar.n}</span><b style="color:${colorPuntaje(punt)}">${punt == null ? 's/d' : punt}</b></div>`; }).join('')}</div>`).join('');
+  };
+  document.getElementById('cmpA').onchange = pintar; document.getElementById('cmpB').onchange = pintar; pintar();
+  document.getElementById('comiteTablero').hidden = true; document.getElementById('comiteInforme').hidden = true; cont.hidden = false;
+}
+
+document.getElementById('btnComite').addEventListener('click', mostrarComite);
+document.getElementById('comiteVolver').addEventListener('click', mostrarPanel);
+document.getElementById('comiteBuscar').addEventListener('input', pintarTablero);
+document.getElementById('comiteOrden').addEventListener('change', pintarTablero);
+document.getElementById('comiteAbrirComparar').addEventListener('click', () => { if (!COMITE) cargarComite().then(pintarComparar); else pintarComparar(); });
+document.getElementById('comiteReanalizar').addEventListener('click', async () => {
+  toast('Re-analizando los números…');
+  try { const r = await fetch('/api/comite/reanalizar', { method: 'POST' }); const j = await r.json(); toast(j.mensaje || 'En marcha'); setTimeout(cargarComite, 30000); } catch { toast('No se pudo re-analizar'); }
+});
+document.getElementById('comiteGrid').addEventListener('click', (e) => { const b = e.target.closest('.comite-card'); if (b) abrirInforme(b.dataset.sim); });
+document.getElementById('comiteInforme').addEventListener('click', (e) => {
+  if (e.target.closest('.inf-volver')) { verTablero(); return; }
+  const g = e.target.closest('.inf-grafico'); if (g) { abrirGrafico(g.dataset.sim); return; }
+  const fila = e.target.closest('.inf-fila'); if (fila) fila.classList.toggle('abierta');
+});
+document.getElementById('comiteComparar').addEventListener('click', (e) => { if (e.target.closest('.cmp-volver')) verTablero(); });
 
 // ---------- Arranque ----------
 async function init() {

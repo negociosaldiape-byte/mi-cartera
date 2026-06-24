@@ -33,6 +33,7 @@
         </div>
       </div>
       <div class="acciones">
+        <button id="btnComite" class="btn-comite" title="Análisis a fondo de cada acción">🏛️ Mi Comité</button>
         <button id="btnAyuda" class="icono-btn" title="Ver el tutorial" aria-label="Ver el tutorial">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12" y2="17"/></svg>
         </button>
@@ -42,6 +43,7 @@
       </div>
     </header>
 
+    <div id="vistaPanel">
     <!-- Pestañas de portafolios (estilo Excel) -->
     <nav class="pestanas" id="pestanas" aria-label="Tus portafolios" hidden></nav>
 
@@ -224,6 +226,37 @@
     <footer class="pie">
       Las lecturas son <strong>análisis, no garantías</strong>. Esto no es asesoría financiera: las decisiones con tu dinero son tuyas.
     </footer>
+    </div><!-- /vistaPanel -->
+
+    <!-- VISTA: Mi Comité -->
+    <section id="vistaComite" hidden>
+      <div class="comite-cab">
+        <button id="comiteVolver" class="btn-fantasma">← Volver al panel</button>
+        <h2 class="comite-titulo">🏛️ Mi Comité <span class="comite-badge">análisis por acción</span></h2>
+        <button id="comiteAbrirComparar" class="btn-mini">⚖️ Comparar 2</button>
+      </div>
+
+      <!-- Sub-vista: Tablero -->
+      <div id="comiteTablero">
+        <div class="comite-toolbar">
+          <input id="comiteBuscar" class="comite-buscar" placeholder="Filtrar acción… (NVDA, VOO…)" autocomplete="off" aria-label="Filtrar acción" />
+          <select id="comiteOrden" class="comite-orden" aria-label="Ordenar">
+            <option value="puntaje">Mejor puntaje primero</option>
+            <option value="peor">Peor puntaje primero</option>
+            <option value="alfa">Alfabético (A-Z)</option>
+          </select>
+          <button id="comiteReanalizar" class="btn-mini">🔄 Re-analizar</button>
+        </div>
+        <div class="comite-grid" id="comiteGrid"></div>
+        <p class="comite-sello">Análisis probabilístico, no asesoría financiera licenciada. <span id="comiteGenerado"></span></p>
+      </div>
+
+      <!-- Sub-vista: Informe (se llena al tocar una acción) -->
+      <div id="comiteInforme" hidden></div>
+
+      <!-- Sub-vista: Comparar -->
+      <div id="comiteComparar" hidden></div>
+    </section>
   </main>
 
   <!-- Botón flotante -->
