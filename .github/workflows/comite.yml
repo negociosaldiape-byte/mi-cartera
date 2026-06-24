@@ -1,0 +1,20 @@
+name: Comite numeros
+
+on:
+  schedule:
+    - cron: '0 12 */2 * *'
+  workflow_dispatch: {}
+
+jobs:
+  comite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Calcular analistas cuantitativos del comite
+        run: node scripts/comite.js
+        env:
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}

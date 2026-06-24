@@ -3,6 +3,7 @@ data.json
 config.json
 proyeccion.json
 vigilantes.json
+comite.json
 .playwright-mcp/
 *.png
 *.log
