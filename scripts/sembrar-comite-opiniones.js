@@ -42,6 +42,32 @@ const OP = {
   NNE: { moat: A(45, 'Nuclear temprano', ['Microrreactores nucleares', 'Sin producto comercial todavía']), macro: A(60, 'Demanda de energía', ['IA/datacenters + apoyo a lo nuclear']), catalizadores: A(62, 'Permisos e hitos', ['Licencias NRC y acuerdos (Supermicro)']), director: D('Especulativa — nuclear', 'Apuesta a los microrreactores nucleares para la era de la IA: tema enorme, pero a años de generar ingresos.', 'Pre-ingresos; regulación nuclear lenta; dilución.', 45) },
 };
 
+// Recomendación en viñetas (qué hacer y por qué), honesta, por símbolo.
+const REC = {
+  VOO: ['Mantén y sigue aportando: es la base de todo.', 'Cómprala sin obsesionarte con el momento — es el mercado entero de EE.UU. por casi nada.', 'Nunca la vendas en bajadas: siempre se ha recuperado.'],
+  QQQM: ['Mantén: es tu motor de crecimiento (tech/IA).', 'En bajadas es buena para aportar; acepta que se mueve más que VOO.', 'No le metas más de lo que aguantes ver caer — ya estás muy expuesto a tech.'],
+  NVDA: ['Mantén; si cae fuerte, de las mejores para comprar más.', 'No persigas el precio en máximos: entra en correcciones.', 'Cuídala en tamaño: es volátil y ya pesa también vía QQQM.'],
+  MSFT: ['Mantén fuerte y tenla por años: calidad de primer nivel.', 'Buena para aportar de forma constante; su precio alto se justifica por su foso.', 'Es núcleo: no necesitas hacer nada con ella.'],
+  GOOGL: ['Mantén; hoy es de las de mejor calidad/precio.', 'Buena candidata para añadir: el mercado le descuenta miedo a la IA.', 'Vigila lo antimonopolio, pero no te asustes por titulares sueltos.'],
+  AMZN: ['Mantén: dos negocios dominantes (AWS + e-commerce).', 'Aporta en bajadas; su verdadero valor está en AWS.', 'Paciencia: invierte mucho hoy, las ganancias llegan con el tiempo.'],
+  META: ['Mantén: máquina de publicidad con usuarios gigantes.', 'Acepta su volatilidad; el riesgo es cuánto quema en el metaverso.', 'No la agrandes demasiado: depende de publicidad (cíclica).'],
+  AVGO: ['Mantén: beneficiaria directa de la IA y además paga dividendo.', 'Buena para el largo plazo; vigila el ciclo de los semiconductores.', 'Tamaño moderado: es cíclica.'],
+  LLY: ['Mantén: líder del megamercado de obesidad/diabetes.', 'Defensiva y en crecimiento, para tener por años.', 'Está cara: no la persigas en máximos, entra en correcciones.'],
+  V: ['Mantén fuerte: es el peaje del consumo mundial, un compounder clásico.', 'De las más seguras para tener y olvidar.', 'Aporta tranquilo: crece despacio pero muy seguro.'],
+  COST: ['Mantén: negocio defensivo con lealtad extrema.', 'Excelente empresa pero cara — mejor aportar en bajadas que perseguir.', 'Tenla por años; no esperes saltos rápidos.'],
+  VXUS: ['Mantén: es tu diversificación fuera de EE.UU. (un seguro).', 'No esperes que brille como EE.UU.; está para protegerte si a EE.UU. le va mal.', 'Mantén su porcentaje; no la agrandes ni la quites por aburrimiento.'],
+  AVUV: ['Mantén solo si piensas a largo plazo (empresas chicas "value").', 'Históricamente premia la paciencia, pero puede rezagar años.', 'Tamaño chico-medio: es volátil.'],
+  SCHD: ['Mantén: empresas sólidas con dividendos crecientes.', 'Buena para estabilidad e ingreso; aporta tranquilo.', 'Acepta que se queda atrás en mercados muy tecnológicos.'],
+  GLDM: ['Mantén: es tu escudo, sube cuando todo lo demás cae.', 'No esperes que "gane" — está para proteger, no para enriquecer.', 'Mantén el porcentaje chico (5–8%); no la agrandes.'],
+  BND: ['Mantén: es el ancla que amortigua las caídas.', 'Aburrido a propósito, y eso es bueno.', 'No te preocupes por su precio: cobra el interés y listo.'],
+  VRDN: ['Tamaño CHICO y no agrandar: es binaria (depende de la FDA).', 'Mantén solo si aceptas que puede caer fuerte si fallan los datos.', 'Solo plata que puedas perder — es una lotería con fundamento.'],
+  RDW: ['Tamaño chico: apuesta especulativa al espacio/defensa.', 'Mantén con tolerancia a sustos; quema caja.', 'No promedies hacia abajo a lo loco.'],
+  CRML: ['Tamaño mínimo: proyecto pre-producción muy incierto.', 'Puede diluir o demorarse años; premio alto, riesgo alto.', 'Solo plata que puedas perder.'],
+  SERV: ['Tamaño mínimo: robótica que aún no es rentable.', 'Buen respaldo (NVIDIA/Uber), pero debe probar el modelo.', 'No la agrandes por entusiasmo.'],
+  RCAT: ['Tamaño mínimo: drones militares, empresa chica.', 'Depende de contratos puntuales; muy volátil.', 'Aguanta los sustos o mejor no la tengas.'],
+  NNE: ['Tamaño mínimo: la más especulativa (nuclear a años de ingresos).', 'Tema enorme pero lejano; puede diluir.', 'Solo plata que no vayas a extrañar.'],
+};
+
 const PESOS = { moat: 20, valuacion: 18, riesgo: 15, macro: 12, catalizadores: 10, tecnico: 10, dividendos: 8, politicos: 7 };
 function compuesto(an) { let s = 0, w = 0; for (const k in PESOS) { const a = an[k]; if (a && typeof a.puntaje === 'number') { s += a.puntaje * PESOS[k]; w += PESOS[k]; } } return w ? Math.round(s / w) : null; }
 
@@ -55,6 +81,7 @@ function compuesto(an) { let s = 0, w = 0; for (const k in PESOS) { const a = an
     a.analistas = a.analistas || {};
     a.analistas.moat = OP[s].moat; a.analistas.macro = OP[s].macro; a.analistas.catalizadores = OP[s].catalizadores;
     a.director = OP[s].director;
+    a.recomendacion = REC[s] || [];
     a.compuesto = compuesto(a.analistas);
     n++;
   }

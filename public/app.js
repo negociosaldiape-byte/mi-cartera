@@ -689,6 +689,8 @@ function abrirInforme(sim) {
       </div>
     </div>`;
   }).join('');
+  const rec = a.recomendacion || [];
+  const recHTML = rec.length ? `<div class="inf-rec"><div class="inf-rec-tit">✅ Mi recomendación</div><ul>${rec.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : '';
   const aviso = (MOONSHOTS.has(sim) || (p != null && p < 40)) ? '<p class="inf-aviso">⚠️ Acción especulativa: riesgo real de caer mucho o hasta a cero. Mantenla en tamaño chico.</p>' : '';
   cont.innerHTML = `
     <button class="btn-fantasma inf-volver">← Volver al tablero</button>
@@ -700,6 +702,7 @@ function abrirInforme(sim) {
       </div>
       <div class="inf-banner-der"><div class="inf-comp" style="color:${col}">${p == null ? '—' : p}</div><div class="inf-vlabel">${esc(veredictoCorto(a))}</div>${dir.confianza ? `<div class="inf-conf">confianza ${dir.confianza}%</div>` : ''}</div>
     </div>
+    ${recHTML}
     <div class="inf-cuerpo">
       <div class="inf-radar">${radarSVG(a)}<button class="btn-fantasma inf-grafico" data-sim="${esc(a.simbolo)}">📈 Ver gráfico de precio</button></div>
       <div class="inf-barras">${barras}</div>

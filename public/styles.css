@@ -276,6 +276,10 @@ body {
 .inf-razon { color: var(--muted); font-size: 0.82rem; margin-top: 2px; line-height: 1.4; }
 .inf-fuente { display: inline-block; margin-top: 4px; font-size: 0.7rem; color: var(--faint); }
 .inf-aviso { color: var(--red); background: var(--red-soft); padding: 10px 14px; border-radius: var(--radio-sm); font-size: 0.85rem; font-weight: 600; margin-top: 16px; }
+.inf-rec { background: rgba(47,217,138,0.08); border: 1px solid rgba(47,217,138,0.25); border-radius: var(--radio-sm); padding: 14px 18px; margin-bottom: 16px; }
+.inf-rec-tit { font-family: var(--fuente-display); font-weight: 800; font-size: 1.02rem; color: var(--green); margin-bottom: 8px; }
+.inf-rec ul { margin: 0; padding-left: 20px; }
+.inf-rec li { color: var(--text); font-size: 0.9rem; line-height: 1.55; margin-bottom: 5px; }
 /* Comparar */
 .cmp-selects { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
 .cmp-selects select { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radio-sm); color: var(--text); padding: 9px 12px; font-family: inherit; flex: 1; }
