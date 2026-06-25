@@ -262,6 +262,36 @@ body {
 .trump-row-tit { font-size: 0.85rem; color: var(--text); line-height: 1.35; margin: 3px 0; }
 .trump-row-meta { font-size: 0.72rem; color: var(--faint); }
 
+/* ---------- Sub-vista Trump dentro del Comité ---------- */
+.comite-cab-btns { display: flex; gap: 8px; }
+.tr-cab { margin-bottom: 16px; }
+.tr-cab h3 { font-size: 1.4rem; margin: 0 0 4px; }
+.tr-sub { color: var(--muted); font-size: 0.85rem; margin: 0; }
+.tr-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+.tr-stat { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px; text-align: center; }
+.tr-stat-n { display: block; font-size: 1.6rem; font-weight: 800; color: var(--text); }
+.tr-stat-l { font-size: 0.72rem; color: var(--muted); }
+.tr-stat-hot { border-color: var(--accent); background: linear-gradient(135deg, rgba(108,140,255,0.12), var(--surface)); }
+.tr-stat-hot .tr-stat-n { color: var(--accent); }
+.tr-aviso { background: var(--red-soft); border: 1px solid rgba(255,92,108,0.3); border-radius: 12px; padding: 12px 16px; margin-bottom: 18px; font-size: 0.9rem; color: var(--text); }
+.tr-dia { margin-bottom: 22px; }
+.tr-dia-tit { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--faint); margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+.tr-item { display: flex; gap: 12px; padding: 12px 14px; border-radius: 12px; background: var(--surface); border-left: 3px solid var(--faint); text-decoration: none; margin-bottom: 8px; transition: background .12s, transform .12s; }
+.tr-item:hover { background: rgba(255,255,255,0.06); transform: translateX(2px); }
+.tr-item.trump-bull { border-left-color: var(--green); }
+.tr-item.trump-bear { border-left-color: var(--red); }
+.tr-item.trump-aten { border-left-color: #f5c451; }
+.tr-mine { box-shadow: inset 0 0 0 1px rgba(108,140,255,0.4); }
+.tr-item-l { min-width: 44px; }
+.tr-hora { font-size: 0.78rem; color: var(--faint); font-weight: 600; }
+.tr-item-r { flex: 1; }
+.tr-item-top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.tr-tk { font-size: 0.9rem; font-weight: 800; color: var(--text); }
+.tr-imp { font-size: 0.74rem; color: var(--muted); white-space: nowrap; }
+.tr-item-tit { font-size: 0.88rem; color: var(--text); line-height: 1.4; margin: 4px 0; }
+.tr-item-meta { font-size: 0.74rem; color: var(--faint); }
+@media (max-width: 560px) { .tr-stats { grid-template-columns: repeat(2, 1fr); } }
+
 /* ---------- Mi Comité ---------- */
 .btn-comite { font-family: var(--fuente-base); font-weight: 700; font-size: 0.86rem; color: var(--accent); background: rgba(108,140,255,0.14); border: 1px solid rgba(108,140,255,0.3); padding: 7px 13px; border-radius: 999px; cursor: pointer; transition: background .15s; white-space: nowrap; }
 .btn-comite:hover { background: rgba(108,140,255,0.24); }

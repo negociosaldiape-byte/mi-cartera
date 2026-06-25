@@ -702,7 +702,7 @@ async function cargarComite() {
   try { const r = await fetch('/api/comite'); COMITE = await r.json(); } catch { COMITE = { acciones: {} }; }
   pintarTablero();
 }
-function verTablero() { document.getElementById('comiteInforme').hidden = true; document.getElementById('comiteComparar').hidden = true; document.getElementById('comiteTablero').hidden = false; }
+function verTablero() { document.getElementById('comiteInforme').hidden = true; document.getElementById('comiteComparar').hidden = true; const t = document.getElementById('comiteTrump'); if (t) t.hidden = true; document.getElementById('comiteTablero').hidden = false; }
 function mostrarComite() {
   document.getElementById('vistaPanel').hidden = true;
   document.getElementById('vistaComite').hidden = false;
@@ -804,11 +804,87 @@ function pintarComparar() {
   document.getElementById('comiteTablero').hidden = true; document.getElementById('comiteInforme').hidden = true; cont.hidden = false;
 }
 
+// ---------- Sub-vista: Trump (todo lo que cazó el agente) ----------
+function diaTitulo(iso) {
+  const d = new Date(iso), hoy = new Date();
+  const z = (n) => String(n).padStart(2, '0');
+  const k = (x) => x.getFullYear() + '-' + z(x.getMonth() + 1) + '-' + z(x.getDate());
+  const ayer = new Date(hoy.getTime() - 86400000);
+  if (k(d) === k(hoy)) return 'Hoy';
+  if (k(d) === k(ayer)) return 'Ayer';
+  return d.toLocaleDateString('es', { weekday: 'long', day: '2-digit', month: 'long' });
+}
+async function pintarComiteTrump() {
+  const cont = document.getElementById('comiteTrump');
+  document.getElementById('comiteTablero').hidden = true;
+  document.getElementById('comiteInforme').hidden = true;
+  document.getElementById('comiteComparar').hidden = true;
+  cont.hidden = false;
+  cont.innerHTML = '<button class="btn-fantasma tr-volver">← Volver al tablero</button><p class="trump-cargando">Cargando todo lo que cazó el agente…</p>';
+  cont.scrollIntoView({ block: 'start', behavior: reducedMotion ? 'auto' : 'smooth' });
+  let data; try { data = await (await fetch('/api/trump')).json(); } catch { data = null; }
+  const ms = (data && Array.isArray(data.menciones)) ? data.menciones : [];
+  const cuando = data && data.generado ? ('Última revisión del agente: ' + fechaCorta(data.generado)) : 'El agente aún no ha hecho su primera ronda.';
+
+  if (!ms.length) {
+    cont.innerHTML = `<button class="btn-fantasma tr-volver">← Volver al tablero</button>
+      <div class="tr-cab"><h3>🇺🇸 Vigía de Trump</h3><p class="tr-sub">${esc(cuando)}</p></div>
+      <div class="trump-vacio">🔍 El agente está despierto y vigilando <b>Truth Social, los discursos de Trump y la Casa Blanca</b> cada 30 minutos.<br><br>Todavía no ha salido de su boca el nombre de ninguna empresa que rastreemos. En cuanto Trump mencione una acción, aparecerá aquí — y si es de tu cartera, te llega un correo.</div>`;
+    return;
+  }
+
+  // Stats
+  const ahora = Date.now();
+  const rec24 = ms.filter((m) => new Date(m.fecha).getTime() > ahora - 86400000);
+  const tk24 = [...new Set(rec24.flatMap((m) => m.tickers || []))];
+  const cartera = [...new Set(ms.filter((m) => m.enMiCartera && m.enMiCartera.length).flatMap((m) => m.enMiCartera))];
+
+  // Agrupar por día
+  const porDia = {};
+  for (const m of ms.slice().sort((a, b) => new Date(b.fecha) - new Date(a.fecha))) {
+    const k = diaTitulo(m.fecha);
+    (porDia[k] = porDia[k] || []).push(m);
+  }
+  const dias = Object.keys(porDia);
+
+  const tarjeta = (m) => {
+    const c = TRUMP_COLOR[m.impacto] || 'trump-neut';
+    const mine = m.enMiCartera && m.enMiCartera.length;
+    const href = m.url ? ` href="${esc(m.url)}" target="_blank" rel="noopener"` : '';
+    const hora = (() => { try { return new Date(m.fecha).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }); } catch { return ''; } })();
+    return `<a class="tr-item ${c}${mine ? ' tr-mine' : ''}"${href}>
+      <div class="tr-item-l"><span class="tr-hora">${hora}</span></div>
+      <div class="tr-item-r">
+        <div class="tr-item-top"><span class="tr-tk">${esc((m.tickers || []).join(' · '))}</span><span class="tr-imp">${esc(TRUMP_LABEL[m.impacto] || '')}</span></div>
+        <div class="tr-item-tit">${esc(m.titulo || '')}</div>
+        <div class="tr-item-meta">${esc(m.fuenteNombre || '')}${mine ? ' · ⭐ <b>en tu cartera: ' + esc(m.enMiCartera.join(', ')) + '</b>' : ''}</div>
+      </div>
+    </a>`;
+  };
+
+  cont.innerHTML = `<button class="btn-fantasma tr-volver">← Volver al tablero</button>
+    <div class="tr-cab">
+      <h3>🇺🇸 Vigía de Trump</h3>
+      <p class="tr-sub">${esc(cuando)}</p>
+    </div>
+    <div class="tr-stats">
+      <div class="tr-stat"><span class="tr-stat-n">${ms.length}</span><span class="tr-stat-l">menciones (72h)</span></div>
+      <div class="tr-stat"><span class="tr-stat-n">${rec24.length}</span><span class="tr-stat-l">en 24h</span></div>
+      <div class="tr-stat"><span class="tr-stat-n">${tk24.length}</span><span class="tr-stat-l">empresas hoy</span></div>
+      <div class="tr-stat ${cartera.length ? 'tr-stat-hot' : ''}"><span class="tr-stat-n">${cartera.length}</span><span class="tr-stat-l">de tu cartera</span></div>
+    </div>
+    ${cartera.length ? `<div class="tr-aviso">🚨 Trump habló de acciones que tienes: <b>${esc(cartera.join(', '))}</b></div>` : ''}
+    ${dias.map((d) => `<div class="tr-dia"><div class="tr-dia-tit">${esc(d)}</div>${porDia[d].map(tarjeta).join('')}</div>`).join('')}
+    <p class="comite-sello">El agente lee Truth Social, discursos y la Casa Blanca cada 30 min. Análisis, no asesoría financiera.</p>`;
+}
+
 document.getElementById('btnComite').addEventListener('click', mostrarComite);
 document.getElementById('comiteVolver').addEventListener('click', mostrarPanel);
 document.getElementById('comiteBuscar').addEventListener('input', pintarTablero);
 document.getElementById('comiteOrden').addEventListener('change', pintarTablero);
 document.getElementById('comiteAbrirComparar').addEventListener('click', () => { if (!COMITE) cargarComite().then(pintarComparar); else pintarComparar(); });
+document.getElementById('comiteAbrirTrump').addEventListener('click', pintarComiteTrump);
+document.getElementById('comiteTrump').addEventListener('click', (e) => { if (e.target.closest('.tr-volver')) verTablero(); });
 document.getElementById('comiteReanalizar').addEventListener('click', async () => {
   toast('Re-analizando los números…');
   try { const r = await fetch('/api/comite/reanalizar', { method: 'POST' }); const j = await r.json(); toast(j.mensaje || 'En marcha'); setTimeout(cargarComite, 30000); } catch { toast('No se pudo re-analizar'); }
