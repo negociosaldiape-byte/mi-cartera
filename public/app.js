@@ -172,22 +172,35 @@ function pintarProyeccion(pr) {
 }
 
 // ---------- Vigilantes (agentes) ----------
+const TRUMP_COLOR = { bullish: 'trump-bull', bearish: 'trump-bear', 'atención': 'trump-aten', neutral: 'trump-neut' };
+
 function pintarVigilantes(v) {
   const sec = document.getElementById('vigilantes');
   if (!sec) return;
   if (!v || !Array.isArray(v.agentes) || !v.agentes.length) { sec.hidden = true; return; }
   sec.hidden = false;
-  const dot = (estado) => estado === 'alerta' ? 'alerta' : (estado === 'inactivo' ? 'inactivo' : 'ok');
-  const etiq = (estado) => estado === 'alerta' ? 'novedad' : (estado === 'inactivo' ? 'en pausa' : 'todo en orden');
-  document.getElementById('vigGrid').innerHTML = v.agentes.map((a) => `
-    <div class="vig-card vig-${dot(a.estado)}">
+  const dot = (e) => e === 'alerta' ? 'alerta' : (e === 'inactivo' ? 'inactivo' : 'ok');
+  const etiq = (e) => e === 'alerta' ? 'novedad' : (e === 'inactivo' ? 'en pausa' : 'todo en orden');
+  document.getElementById('vigGrid').innerHTML = v.agentes.map((a) => {
+    const pills = (a.menciones && a.menciones.length)
+      ? `<div class="trump-lista">${a.menciones.slice(0, 3).map(m => {
+          const cls = TRUMP_COLOR[m.impacto] || 'trump-neut';
+          const tickers = (m.tickers || []).slice(0, 4).join(' · ');
+          const titulo = (m.titulo || '').slice(0, 68) + ((m.titulo || '').length > 68 ? '…' : '');
+          const href = m.url ? ` href="${esc(m.url)}" target="_blank" rel="noopener"` : '';
+          return `<a class="trump-pill ${cls}"${href}><span class="trump-tickers">${esc(tickers)}</span><span class="trump-titulo">${esc(titulo)}</span></a>`;
+        }).join('')}</div>`
+      : '';
+    return `<div class="vig-card vig-${dot(a.estado)}">
       <div class="vig-top">
         <span class="vig-emoji">${esc(a.emoji || '🐺')}</span>
         <span class="vig-nombre">${esc(a.nombre || '')}</span>
         <span class="vig-estado e-${dot(a.estado)}">${etiq(a.estado)}</span>
       </div>
       <div class="vig-resumen">${esc(a.resumen || '')}</div>
-    </div>`).join('');
+      ${pills}
+    </div>`;
+  }).join('');
   const c = document.getElementById('vigCuando');
   if (c) c.textContent = v.generado ? ('Última ronda: ' + new Date(v.generado).toLocaleString('es', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })) : '';
 }

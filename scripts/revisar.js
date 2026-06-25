@@ -63,6 +63,14 @@ function efectivo(pf) {
   alertas.riesgo = alertas.riesgo || {}; alertas.riesgo[hoy] = alertas.riesgo[hoy] || [];
   alertas.preds = alertas.preds || [];
 
+  // Datos del Vigía de Trump (clave 'trump', escrita por scripts/trump.js)
+  const trumpData = JSON.parse((await upstash(['GET', 'trump'])).result || '{}');
+  const trumpMenciones = trumpData.menciones || [];
+  const ahora24 = Date.now() - 24 * 3600000;
+  const trump24h = trumpMenciones.filter(m => new Date(m.fecha).getTime() > ahora24);
+  const trumpEnCartera = trump24h.filter(m => m.enMiCartera && m.enMiCartera.length > 0);
+  const trumpTickers24h = [...new Set(trump24h.flatMap(m => m.tickers))];
+
   const eventos = [];
 
   // Precios (una sola vez por símbolo, compartidos entre vigilantes)
@@ -157,9 +165,16 @@ function efectivo(pf) {
           : (lecturasAbiertas + ' lectura(s) abierta(s) en vigilancia. Te aviso cuando alguna cumpla su plazo.'),
       },
       {
-        id: 'politicos', nombre: 'Vigía de Políticos', emoji: '🏛️',
-        estado: 'inactivo',
-        resumen: 'En pausa: la fuente pública gratuita de trades del Congreso (STOCK Act) se cerró. Necesita una fuente de datos para activarse.',
+        id: 'politicos', nombre: 'Vigía de Trump', emoji: '🇺🇸',
+        estado: trumpEnCartera.length ? 'alerta' : 'ok',
+        resumen: trumpEnCartera.length
+          ? '🚨 Trump mencionó ' + [...new Set(trumpEnCartera.flatMap(m => m.enMiCartera))].join(', ') + ' de tu cartera. Email enviado.'
+          : trump24h.length
+            ? trump24h.length + ' mención(es) en 24h: ' + trumpTickers24h.slice(0, 6).join(', ')
+            : (trumpData.generado
+                ? 'Sin menciones de acciones en 24h. Última revisión: ' + new Date(trumpData.generado).toLocaleString('es', { hour: '2-digit', minute: '2-digit' })
+                : 'Monitoreando Truth Social, Casa Blanca y noticias. Sin datos aún.'),
+        menciones: trump24h.slice(0, 4).map(m => ({ titulo: m.titulo, tickers: m.tickers, impacto: m.impacto, fecha: m.fecha, url: m.url })),
       },
     ],
   };

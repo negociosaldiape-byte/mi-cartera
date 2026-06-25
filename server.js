@@ -130,12 +130,39 @@ async function leerProyeccion() {
 }
 
 async function leerVigilantes() {
+  let v = null;
   if (USA_NUBE) {
-    try { const j = await upstashComando(['GET', 'vigilantes']); return j && j.result ? JSON.parse(j.result) : null; }
-    catch { return null; }
+    try { const j = await upstashComando(['GET', 'vigilantes']); v = j && j.result ? JSON.parse(j.result) : null; }
+    catch { v = null; }
+  } else {
+    try { v = JSON.parse(fs.readFileSync(path.join(RAIZ, 'vigilantes.json'), 'utf8')); } catch { v = null; }
   }
-  try { return JSON.parse(fs.readFileSync(path.join(RAIZ, 'vigilantes.json'), 'utf8')); }
-  catch { return null; }
+
+  // Siempre parchar el vigilante de Trump con datos frescos de 'trump'
+  const trump = await leerTrump();
+  if (trump) {
+    if (!v) v = { generado: trump.generado, agentes: [] };
+    if (!Array.isArray(v.agentes)) v.agentes = [];
+    const menciones = trump.menciones || [];
+    const ahora = Date.now();
+    const rec24h = menciones.filter(m => new Date(m.fecha).getTime() > ahora - 24 * 3600000);
+    const enCartera = rec24h.filter(m => m.enMiCartera && m.enMiCartera.length > 0);
+    const tickers24h = [...new Set(rec24h.flatMap(m => m.tickers))];
+    const vigiTrump = {
+      id: 'politicos', nombre: 'Vigía de Trump', emoji: '🇺🇸',
+      estado: enCartera.length ? 'alerta' : 'ok',
+      resumen: enCartera.length
+        ? '🚨 Trump mencionó ' + [...new Set(enCartera.flatMap(m => m.enMiCartera))].join(', ') + ' de tu cartera.'
+        : rec24h.length
+          ? rec24h.length + ' mención(es) en 24h: ' + tickers24h.slice(0, 6).join(', ')
+          : 'Sin menciones en 24h. Monitoreando Truth Social, Casa Blanca y noticias.',
+      menciones: rec24h.slice(0, 4).map(m => ({ titulo: m.titulo, tickers: m.tickers, impacto: m.impacto, fecha: m.fecha, url: m.url })),
+    };
+    const idx = v.agentes.findIndex(a => a.id === 'politicos');
+    if (idx >= 0) v.agentes[idx] = vigiTrump; else v.agentes.push(vigiTrump);
+  }
+
+  return v;
 }
 
 async function leerComite() {
@@ -144,6 +171,15 @@ async function leerComite() {
     catch { return null; }
   }
   try { return JSON.parse(fs.readFileSync(path.join(RAIZ, 'comite.json'), 'utf8')); }
+  catch { return null; }
+}
+
+async function leerTrump() {
+  if (USA_NUBE) {
+    try { const j = await upstashComando(['GET', 'trump']); return j && j.result ? JSON.parse(j.result) : null; }
+    catch { return null; }
+  }
+  try { return JSON.parse(fs.readFileSync(path.join(RAIZ, 'trump.json'), 'utf8')); }
   catch { return null; }
 }
 
@@ -474,6 +510,10 @@ const servidor = http.createServer(async (req, res) => {
 
     if (ruta === '/api/comite' && req.method === 'GET') {
       return enviarJSON(res, 200, (await leerComite()) || { acciones: {} });
+    }
+
+    if (ruta === '/api/trump' && req.method === 'GET') {
+      return enviarJSON(res, 200, (await leerTrump()) || { menciones: [], stats: {}, generado: null });
     }
     if (ruta === '/api/comite/reanalizar' && req.method === 'POST') {
       try {

@@ -1,0 +1,25 @@
+name: Vigía de Trump
+
+on:
+  schedule:
+    # Cada 30 min, lunes–viernes 13:00–21:00 UTC (9am–5pm ET)
+    - cron: '0,30 13-21 * * 1-5'
+    # Fines de semana: Trump postea — revisión 2 veces al día
+    - cron: '0 14,20 * * 0,6'
+  workflow_dispatch: {}
+
+jobs:
+  trump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Monitorear declaraciones de Trump
+        run: node scripts/trump.js
+        env:
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
