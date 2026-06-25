@@ -191,7 +191,8 @@ function pintarVigilantes(v) {
           return `<a class="trump-pill ${cls}"${href}><span class="trump-tickers">${esc(tickers)}</span><span class="trump-titulo">${esc(titulo)}</span></a>`;
         }).join('')}</div>`
       : '';
-    return `<div class="vig-card vig-${dot(a.estado)}">
+    const esTrump = a.id === 'politicos';
+    return `<div class="vig-card vig-${dot(a.estado)}${esTrump ? ' vig-click' : ''}"${esTrump ? ' data-vig="trump" role="button" tabindex="0"' : ''}>
       <div class="vig-top">
         <span class="vig-emoji">${esc(a.emoji || '🐺')}</span>
         <span class="vig-nombre">${esc(a.nombre || '')}</span>
@@ -199,11 +200,72 @@ function pintarVigilantes(v) {
       </div>
       <div class="vig-resumen">${esc(a.resumen || '')}</div>
       ${pills}
+      ${esTrump ? '<span class="vig-ver">Ver lo que cazó →</span>' : ''}
     </div>`;
   }).join('');
   const c = document.getElementById('vigCuando');
   if (c) c.textContent = v.generado ? ('Última ronda: ' + new Date(v.generado).toLocaleString('es', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })) : '';
 }
+
+// ---------- Modal Vigía de Trump ----------
+const TRUMP_LABEL = { bullish: '👍 a favor', bearish: '👎 en contra', 'atención': '⚠️ atención', neutral: '· neutral' };
+function fechaCorta(f) { try { return new Date(f).toLocaleString('es', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }); } catch { return ''; } }
+
+async function abrirTrump() {
+  const modal = document.getElementById('modalTrump');
+  const dest = document.getElementById('trumpDestacado');
+  const lista = document.getElementById('trumpLista');
+  const cuando = document.getElementById('trumpCuando');
+  modal.hidden = false;
+  dest.innerHTML = '<p class="trump-cargando">Cargando lo que cazó el agente…</p>';
+  lista.innerHTML = '';
+  let data;
+  try { data = await (await fetch('/api/trump')).json(); } catch { data = null; }
+  if (!data || !Array.isArray(data.menciones) || !data.menciones.length) {
+    cuando.textContent = data && data.generado ? ('Última revisión: ' + fechaCorta(data.generado)) : '';
+    dest.innerHTML = '<div class="trump-vacio">🔍 El agente está vigilando, pero Trump aún no menciona ninguna acción que rastreemos.<br><br>Revisa Truth Social, los discursos y la Casa Blanca cada 30 minutos. Si Trump habla de una de tus acciones, te llega un correo y aparece aquí.</div>';
+    return;
+  }
+  cuando.textContent = 'Última revisión: ' + fechaCorta(data.generado);
+  const ms = data.menciones.slice();
+  // Lo más importante: primero las de tu cartera, luego no-neutral, luego lo más reciente.
+  const score = (m) => (m.enMiCartera && m.enMiCartera.length ? 100 : 0) + (m.impacto && m.impacto !== 'neutral' ? 10 : 0);
+  const top = ms.slice().sort((a, b) => (score(b) - score(a)) || (new Date(b.fecha) - new Date(a.fecha)))[0];
+  const cls = TRUMP_COLOR[top.impacto] || 'trump-neut';
+  const enCart = top.enMiCartera && top.enMiCartera.length;
+  dest.innerHTML = `
+    <div class="trump-dest ${cls}">
+      <div class="trump-dest-tag">Lo más importante que cazó el agente</div>
+      <div class="trump-dest-tickers">${esc((top.tickers || []).join(' · '))} <span class="trump-dest-imp">${esc(TRUMP_LABEL[top.impacto] || '')}</span></div>
+      <div class="trump-dest-titulo">${esc(top.titulo || '')}</div>
+      <div class="trump-dest-meta">${fechaCorta(top.fecha)} · ${esc(top.fuenteNombre || '')}${enCart ? ' · <b style="color:var(--accent)">en tu cartera: ' + esc(top.enMiCartera.join(', ')) + '</b>' : ''}</div>
+      ${top.url ? `<a class="trump-dest-link" href="${esc(top.url)}" target="_blank" rel="noopener">Ver la fuente original →</a>` : ''}
+    </div>`;
+  lista.innerHTML = '<div class="trump-lista-tit">Todo lo que cazó (últimas 72h)</div>' + ms
+    .sort((a, b) => new Date(b.fecha) - new Date(a.fecha))
+    .slice(0, 15)
+    .map((m) => {
+      const c = TRUMP_COLOR[m.impacto] || 'trump-neut';
+      const mine = m.enMiCartera && m.enMiCartera.length;
+      const href = m.url ? ` href="${esc(m.url)}" target="_blank" rel="noopener"` : '';
+      return `<a class="trump-row ${c}${mine ? ' trump-row-mine' : ''}"${href}>
+        <div class="trump-row-top"><span class="trump-row-tk">${esc((m.tickers || []).join(' · '))}</span><span class="trump-row-imp">${esc(TRUMP_LABEL[m.impacto] || '')}</span></div>
+        <div class="trump-row-tit">${esc(m.titulo || '')}</div>
+        <div class="trump-row-meta">${fechaCorta(m.fecha)} · ${esc(m.fuenteNombre || '')}${mine ? ' · ⭐ tu cartera' : ''}</div>
+      </a>`;
+    }).join('');
+}
+function cerrarTrump() { document.getElementById('modalTrump').hidden = true; }
+document.getElementById('vigGrid').addEventListener('click', (e) => {
+  if (e.target.closest('.trump-pill')) return; // dejar pasar los links de las pills
+  const card = e.target.closest('.vig-click'); if (card) abrirTrump();
+});
+document.getElementById('vigGrid').addEventListener('keydown', (e) => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.closest('.vig-click')) { e.preventDefault(); abrirTrump(); }
+});
+document.getElementById('cerrarTrump').addEventListener('click', cerrarTrump);
+document.getElementById('modalTrump').addEventListener('click', (e) => { if (e.target.id === 'modalTrump') cerrarTrump(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !document.getElementById('modalTrump').hidden) cerrarTrump(); });
 
 // ---------- Gráfico de área (evolución) ----------
 function construirArea(historico) {
@@ -499,7 +561,7 @@ const ESTADO_DEMO = {
     { id: 'movimientos', nombre: 'Vigía de Movimientos', emoji: '📡', estado: 'alerta', resumen: '1 movimiento fuerte hoy: BTC-USD ▲8.2%' },
     { id: 'riesgo', nombre: 'Vigía de Riesgo', emoji: '🛡️', estado: 'ok', resumen: 'Concentración OK (máx BTC-USD 34%). Día: +1.2%.' },
     { id: 'marcador', nombre: 'Vigía del Marcador', emoji: '🎯', estado: 'ok', resumen: '1 lectura abierta en vigilancia. Te aviso cuando cumpla su plazo.' },
-    { id: 'politicos', nombre: 'Vigía de Políticos', emoji: '🏛️', estado: 'inactivo', resumen: 'En pausa: necesita una fuente de datos para activarse.' },
+    { id: 'politicos', nombre: 'Vigía de Trump', emoji: '🇺🇸', estado: 'ok', resumen: '2 mención(es) en 24h: NVDA, DELL', menciones: [{ titulo: 'Trump praises chip makers at rally', tickers: ['NVDA'], impacto: 'bullish', fecha: '2026-06-21T13:00:00Z' }] },
   ] },
   historico: [
     { fecha: '2026-06-14', valorTotal: 9100 }, { fecha: '2026-06-15', valorTotal: 9320 }, { fecha: '2026-06-16', valorTotal: 9210 },
@@ -698,7 +760,7 @@ function abrirInforme(sim) {
       <div class="inf-detalle">
         <div class="inf-vered">${esc(an.veredicto || 'Sin datos')}</div>
         ${(an.razones || []).map((r) => `<div class="inf-razon">· ${esc(r)}</div>`).join('')}
-        ${an.fuente === 'claude' ? '<span class="inf-fuente">opinión de Claude</span>' : (an.fuente === 'datos' ? '<span class="inf-fuente">cálculo de datos</span>' : '')}
+        ${an.fuente === 'claude' ? '<span class="inf-fuente">opinión de Claude</span>' : (an.fuente === 'datos' ? '<span class="inf-fuente">cálculo de datos</span>' : (an.fuente === 'trump' ? '<span class="inf-fuente">🇺🇸 Vigía de Trump</span>' : ''))}
       </div>
     </div>`;
   }).join('');

@@ -92,6 +92,27 @@ function analistaDividendos(f, esEtf) {
   return { puntaje, senal: puntaje >= 55 ? 'positiva' : 'neutra', veredicto: puntaje >= 55 ? 'Buen pagador' : 'Dividendo modesto', razones, fuente: 'datos' };
 }
 
+// Analista de Políticos = Vigía de Trump. Puntúa según lo que Trump dijo de la acción.
+function analistaTrump(simbolo, trump) {
+  const corte = Date.now() - 21 * 86400000; // últimas 3 semanas
+  const menciones = ((trump && trump.menciones) || [])
+    .filter((m) => (m.tickers || []).includes(simbolo) && new Date(m.fecha).getTime() > corte);
+  if (!menciones.length) {
+    return { estado: 'vigilando', veredicto: 'Trump no ha hablado de esta acción (últimas 3 semanas)', razones: ['Vigilando Truth Social, discursos y la Casa Blanca en tiempo real'], fuente: 'trump' };
+  }
+  let bull = 0, bear = 0, aten = 0;
+  for (const m of menciones) { if (m.impacto === 'bullish') bull++; else if (m.impacto === 'bearish') bear++; else if (m.impacto === 'atención') aten++; }
+  const puntaje = Math.round(clamp(50 + bull * 18 - bear * 22 - aten * 8, 5, 95));
+  const reciente = menciones.slice().sort((a, b) => new Date(b.fecha) - new Date(a.fecha))[0];
+  const cuando = new Date(reciente.fecha).toLocaleDateString('es', { day: '2-digit', month: 'short' });
+  const razones = [
+    menciones.length + ' mención(es) de Trump en 3 semanas (' + bull + ' a favor, ' + bear + ' en contra' + (aten ? ', ' + aten + ' de atención' : '') + ')',
+    'Lo último (' + cuando + '): "' + (reciente.titulo || '').slice(0, 95) + '"',
+  ];
+  const veredicto = puntaje >= 65 ? 'Trump habla a favor' : (puntaje >= 40 ? 'Mención mixta / neutral' : 'Trump en contra (riesgo político)');
+  return { puntaje, senal: senalDe(puntaje), veredicto, razones, fuente: 'trump' };
+}
+
 const PESOS = { moat: 20, valuacion: 18, riesgo: 15, macro: 12, catalizadores: 10, tecnico: 10, dividendos: 8, politicos: 7 };
 function compuesto(analistas) {
   let suma = 0, peso = 0;
@@ -105,6 +126,7 @@ function compuesto(analistas) {
   const ports = Array.isArray(blob.portafolios) ? blob.portafolios : [];
   const simbolos = [...new Set(ports.flatMap((p) => Object.keys(posiciones(p.operaciones))))];
   const prev = JSON.parse((await upstash(['GET', 'comite'])).result || '{}'); prev.acciones = prev.acciones || {};
+  const trump = JSON.parse((await upstash(['GET', 'trump'])).result || '{}');
   const ahora = new Date().toISOString();
 
   for (const s of simbolos) {
@@ -119,7 +141,7 @@ function compuesto(analistas) {
     a.analistas.tecnico = analistaTecnico(c.closes);
     a.analistas.valuacion = analistaValuacion(f, c.closes, esEtf);
     a.analistas.dividendos = analistaDividendos(f, esEtf);
-    if (!a.analistas.politicos) a.analistas.politicos = { estado: 'inactivo', veredicto: 'Sin datos — la fuente pública gratis se cerró; necesita API' };
+    a.analistas.politicos = analistaTrump(s, trump);
     a.compuesto = compuesto(a.analistas);
     prev.acciones[s] = a;
   }
