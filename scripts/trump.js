@@ -3,6 +3,11 @@
 //  Monitorea Truth Social, Google News y la Casa Blanca
 //  buscando menciones de empresas, tickers o personas
 //  asociadas a la bolsa en declaraciones de Trump.
+//
+//  Detección en 3 capas: (1) $TICKER explícito, (2) mapa rápido de ~80
+//  nombres/apodos conocidos, (3) RESOLUCIÓN DINÁMICA: cualquier nombre
+//  propio que diga Trump se busca en Yahoo Finance y, si cotiza, se
+//  convierte a su ticker automáticamente. Así NO depende solo del mapa.
 //  Escribe en Upstash: clave 'trump'
 //  Envía email si Trump menciona una acción de tu cartera.
 //
@@ -88,15 +93,80 @@ const MAPA = {
   'made in usa': [], 'made in america': [],
 };
 
-// Detectar tickers en texto
-function detectarTickers(texto) {
+// Palabras que parecen nombre propio pero NO son empresas (evita búsquedas inútiles).
+const STOP = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'of', 'in', 'on', 'at', 'to', 'for', 'with',
+  'trump', 'donald', 'president', 'biden', 'harris', 'obama', 'america', 'american', 'americans',
+  'united', 'states', 'usa', 'us', 'u.s.', 'u.s', 'china', 'chinese', 'russia', 'mexico', 'canada',
+  'europe', 'european', 'washington', 'white', 'house', 'congress', 'senate', 'democrat', 'democrats',
+  'republican', 'republicans', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday',
+  'sunday', 'january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september',
+  'october', 'november', 'december', 'great', 'big', 'new', 'make', 'making', 'god', 'bless',
+  'truth', 'social', 'news', 'fake', 'border', 'deal', 'tax', 'tariff', 'tariffs', 'billion',
+  'million', 'trillion', 'dollar', 'dollars', 'percent', 'today', 'tonight', 'now', 'this', 'that',
+  'we', 'i', 'they', 'he', 'she', 'it', 'my', 'our', 'your', 'their', 'will', 'would', 'is', 'are',
+  'was', 'were', 'has', 'have', 'had', 'do', 'did', 'says', 'said', 'report', 'reports', 'breaking',
+  'crooked', 'sleepy', 'radical', 'left', 'right', 'fed', 'federal', 'reserve', 'supreme', 'court',
+  'department', 'secretary', 'governor', 'senator', 'wall', 'street', 'main', 'first', 'last']);
+
+// Caché de búsquedas Yahoo (nombre → ticker o null), se rellena durante la corrida.
+const cacheNombre = new Map();
+
+// Buscar el ticker de un nombre de empresa en Yahoo Finance (el mismo buscador del panel).
+async function buscarTicker(nombre) {
+  const clave = nombre.toLowerCase();
+  if (cacheNombre.has(clave)) return cacheNombre.get(clave);
+  try {
+    const url = 'https://query1.finance.yahoo.com/v1/finance/search?q=' + encodeURIComponent(nombre) + '&quotesCount=3&newsCount=0';
+    const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(8000) });
+    if (!r.ok) { cacheNombre.set(clave, null); return null; }
+    const j = await r.json();
+    const q = (j.quotes || []).find(x => x.symbol &&
+      (x.quoteType === 'EQUITY' || x.quoteType === 'ETF') &&
+      (x.shortname || x.longname));
+    if (!q) { cacheNombre.set(clave, null); return null; }
+    // Confirmar que el nombre de Trump aparece en el nombre real de la empresa (evita falsos positivos).
+    const oficial = (q.shortname || q.longname || '').toLowerCase();
+    const palabra = clave.split(' ')[0];
+    const ticker = oficial.includes(palabra) ? q.symbol.toUpperCase() : null;
+    cacheNombre.set(clave, ticker);
+    return ticker;
+  } catch { cacheNombre.set(clave, null); return null; }
+}
+
+// Extraer candidatos a nombre propio: secuencias de palabras Capitalizadas (1-3 palabras).
+function extraerNombresPropios(texto) {
+  const out = new Set();
+  // Cortar en frases (. ! ? : ; — saltos) para no pegar nombres de oraciones distintas.
+  for (const frase of texto.split(/[.!?:;\n]|—| - /)) {
+    for (const m of frase.matchAll(/\b([A-Z][a-zA-Z&'-]+(?:\s+(?:[A-Z][a-zA-Z&'-]+|of|and|&)){0,2})\b/g)) {
+      const palabras = m[1].trim().split(/\s+/);
+      const utiles = palabras.filter(p => !STOP.has(p.toLowerCase()) && p.length > 2);
+      if (!utiles.length) continue;
+      // Saltar candidatos de UNA sola palabra TODA en mayúsculas (énfasis de Trump, no nombre).
+      if (utiles.length === 1 && utiles[0] === utiles[0].toUpperCase() && utiles[0].length > 3) continue;
+      out.add(utiles.join(' '));
+      if (utiles.length > 1) out.add(utiles[0]); // "Caterpillar Inc" → también "Caterpillar"
+    }
+  }
+  return [...out];
+}
+
+// Detectar tickers en texto (mapa rápido + $TICKER + resolución dinámica Yahoo)
+async function detectarTickers(texto) {
   const t = texto.toLowerCase();
   const enc = new Set();
-  // $TICKER explícito
+  // 1) $TICKER explícito
   for (const m of texto.matchAll(/\$([A-Z]{1,5}(?:\.[AB])?)\b/g)) enc.add(m[1]);
-  // Nombres de empresa/persona
+  // 2) Nombres/apodos conocidos del mapa (rápido, sin red)
   for (const [nombre, tickers] of Object.entries(MAPA)) {
     if (t.includes(nombre)) for (const tk of tickers) if (tk) enc.add(tk);
+  }
+  // 3) Resolución dinámica: cualquier nombre propio → Yahoo lo convierte a ticker
+  const candidatos = extraerNombresPropios(texto);
+  for (const nombre of candidatos) {
+    if (cacheNombre.get(nombre.toLowerCase()) === null) continue; // ya se sabe que no es empresa
+    const tk = await buscarTicker(nombre);
+    if (tk) enc.add(tk);
   }
   return [...enc];
 }
@@ -228,7 +298,7 @@ async function enviarAlerta(menciones) {
       if (item.pubDate && new Date(item.pubDate).getTime() < corte48h) continue;
 
       const texto = item.title + ' ' + item.desc;
-      const tickers = detectarTickers(texto);
+      const tickers = await detectarTickers(texto);
       if (!tickers.length) continue;
 
       yaVistos.add(id);
