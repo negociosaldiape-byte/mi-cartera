@@ -490,7 +490,7 @@ document.addEventListener('click', (e) => {
 
 // ---------- Atajos de teclado ----------
 document.addEventListener('keydown', (e) => {
-  const enInput = e.target.matches('input,select,textarea');
+  const enInput = e.target.matches && e.target.matches('input,select,textarea');
   if (e.key === 'Escape') { if (!modal.hidden) cerrarModal(); else if (!document.getElementById('tour').hidden) cerrarTour(); return; }
   if (enInput) return;
   if (e.key.toLowerCase() === 'n') abrirModal('operacion');
