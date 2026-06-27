@@ -690,6 +690,7 @@ const AREAS = [
   { k: 'politicos', e: '🏛️', n: 'Políticos' }, { k: 'dividendos', e: '💵', n: 'Dividendos' },
 ];
 const MOONSHOTS = new Set(['VRDN', 'RDW', 'CRML', 'SERV', 'RCAT', 'NNE']);
+let TRUMP_DATA = null;
 function colorPuntaje(p) { return p == null ? COL.faint : (p >= 60 ? COL.green : (p >= 40 ? COL.accent : COL.red)); }
 function claseComite(p) { return p == null ? 'c-nd' : (p >= 60 ? 'c-ok' : (p >= 40 ? 'c-med' : 'c-mal')); }
 function veredictoCorto(a) {
@@ -849,6 +850,7 @@ async function pintarComiteTrump() {
   const rec24 = ms.filter((m) => new Date(m.fecha).getTime() > ahora - 86400000);
   const tk24 = [...new Set(rec24.flatMap((m) => m.tickers || []))];
   const cartera = [...new Set(ms.filter((m) => m.enMiCartera && m.enMiCartera.length).flatMap((m) => m.enMiCartera))];
+  TRUMP_DATA = { ms, rec24, tk24, cartera };
 
   // Agrupar por día
   const porDia = {};
@@ -879,15 +881,70 @@ async function pintarComiteTrump() {
       <p class="tr-sub">${esc(cuando)}</p>
     </div>
     <div class="tr-stats">
-      <div class="tr-stat"><span class="tr-stat-n">${ms.length}</span><span class="tr-stat-l">menciones (72h)</span></div>
-      <div class="tr-stat"><span class="tr-stat-n">${rec24.length}</span><span class="tr-stat-l">en 24h</span></div>
-      <div class="tr-stat"><span class="tr-stat-n">${tk24.length}</span><span class="tr-stat-l">empresas hoy</span></div>
-      <div class="tr-stat ${cartera.length ? 'tr-stat-hot' : ''}"><span class="tr-stat-n">${cartera.length}</span><span class="tr-stat-l">de tu cartera</span></div>
+      <button class="tr-stat" data-tipo="todas"><span class="tr-stat-n">${ms.length}</span><span class="tr-stat-l">menciones (72h)</span><span class="tr-stat-ver">ver ▾</span></button>
+      <button class="tr-stat" data-tipo="rec24"><span class="tr-stat-n">${rec24.length}</span><span class="tr-stat-l">en 24h</span><span class="tr-stat-ver">ver ▾</span></button>
+      <button class="tr-stat" data-tipo="empresas"><span class="tr-stat-n">${tk24.length}</span><span class="tr-stat-l">empresas hoy</span><span class="tr-stat-ver">ver ▾</span></button>
+      <button class="tr-stat ${cartera.length ? 'tr-stat-hot' : ''}" data-tipo="cartera"><span class="tr-stat-n">${cartera.length}</span><span class="tr-stat-l">de tu cartera</span><span class="tr-stat-ver">ver ▾</span></button>
     </div>
     ${cartera.length ? `<div class="tr-aviso">🚨 Trump habló de acciones que tienes: <b>${esc(cartera.join(', '))}</b></div>` : ''}
     ${dias.map((d) => `<div class="tr-dia"><div class="tr-dia-tit">${esc(d)}</div>${porDia[d].map(tarjeta).join('')}</div>`).join('')}
     <p class="comite-sello">El agente lee Truth Social, discursos y la Casa Blanca cada 30 min. Análisis, no asesoría financiera.</p>`;
 }
+
+// ---------- Popups de los números del Vigía de Trump ----------
+const TRUMP_TITULOS = {
+  todas: ['🇺🇸 Todas las menciones — últimas 72h', 'Cada vez que Trump (o una noticia sobre él) nombró una empresa que el agente rastrea, en los últimos 3 días.'],
+  rec24: ['🕒 Menciones de las últimas 24h', 'Lo más fresco: lo que salió en el último día.'],
+  empresas: ['🏢 Empresas nombradas hoy (24h)', 'Las empresas distintas que aparecieron en las menciones de las últimas 24 horas.'],
+  cartera: ['🚨 Tus acciones que tocó Trump', 'Acciones que TIENES en tu cartera y que aparecieron en lo que dijo o se dijo sobre Trump (72h).'],
+};
+function trmFila(m, i) {
+  const c = TRUMP_COLOR[m.impacto] || 'trump-neut';
+  const mine = m.enMiCartera && m.enMiCartera.length;
+  const fh = (() => { try { const d = new Date(m.fecha); return d.toLocaleDateString('es', { day: '2-digit', month: 'short' }) + ' ' + d.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }); } catch { return ''; } })();
+  const href = m.url ? ` href="${esc(m.url)}" target="_blank" rel="noopener"` : '';
+  return `<a class="trm-item ${c}${mine ? ' tr-mine' : ''}"${href}>
+    <span class="trm-num">${i + 1}</span>
+    <span class="trm-body">
+      <span class="trm-top"><b>${esc((m.tickers || []).join(' · '))}</b><span class="trm-imp">${esc(TRUMP_LABEL[m.impacto] || '')}</span></span>
+      <span class="trm-tit">${esc(m.titulo || '')}</span>
+      <span class="trm-meta">${esc(fh)}${m.fuenteNombre ? ' · ' + esc(m.fuenteNombre) : ''}${mine ? ' · ⭐ <b>tuya: ' + esc(m.enMiCartera.join(', ')) + '</b>' : ''}</span>
+    </span>
+  </a>`;
+}
+function abrirTrumpDetalle(tipo) {
+  if (!TRUMP_DATA) return;
+  const [tit, sub] = TRUMP_TITULOS[tipo] || ['', ''];
+  const vac = '<p class="trm-vacio">Nada por aquí todavía.</p>';
+  const ordena = (arr) => arr.slice().sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+  let cuerpo = '';
+  if (tipo === 'todas' || tipo === 'rec24') {
+    const a = ordena(tipo === 'todas' ? TRUMP_DATA.ms : TRUMP_DATA.rec24);
+    cuerpo = a.length ? a.map(trmFila).join('') : vac;
+  } else if (tipo === 'empresas') {
+    const a = TRUMP_DATA.tk24;
+    cuerpo = a.length ? a.map((tk, i) => {
+      const veces = TRUMP_DATA.rec24.filter((m) => (m.tickers || []).includes(tk)).length;
+      const mine = TRUMP_DATA.cartera.includes(tk);
+      return `<div class="trm-emp${mine ? ' tr-mine' : ''}"><span class="trm-num">${i + 1}</span><b class="trm-emp-tk">${esc(tk)}</b><span class="trm-emp-c">${veces} mención${veces === 1 ? '' : 'es'}</span>${mine ? '<span class="trm-star">⭐ la tienes</span>' : ''}</div>`;
+    }).join('') : vac;
+  } else if (tipo === 'cartera') {
+    const a = TRUMP_DATA.cartera;
+    cuerpo = a.length ? a.map((tk, i) => {
+      const suyas = ordena(TRUMP_DATA.ms.filter((m) => (m.enMiCartera || []).includes(tk)));
+      return `<div class="trm-grupo"><div class="trm-grupo-tit"><span class="trm-num">${i + 1}</span><b>${esc(tk)}</b> <span class="trm-grupo-c">· ${suyas.length} noticia${suyas.length === 1 ? '' : 's'}</span></div>${suyas.map(trmFila).join('')}</div>`;
+    }).join('') : vac;
+  }
+  cerrarTrumpModal();
+  const o = document.createElement('div');
+  o.id = 'trmOverlay'; o.className = 'trm-overlay';
+  o.innerHTML = `<div class="trm-card" role="dialog" aria-modal="true"><button class="trm-x" aria-label="Cerrar">✕</button><div class="trm-cab"><h4>${esc(tit)}</h4><p>${esc(sub)}</p></div><div class="trm-lista">${cuerpo}</div></div>`;
+  document.body.appendChild(o);
+  o.addEventListener('click', (e) => { if (e.target === o || e.target.closest('.trm-x')) cerrarTrumpModal(); });
+  document.addEventListener('keydown', trmEsc);
+}
+function trmEsc(e) { if (e.key === 'Escape') cerrarTrumpModal(); }
+function cerrarTrumpModal() { const o = document.getElementById('trmOverlay'); if (o) o.remove(); document.removeEventListener('keydown', trmEsc); }
 
 document.getElementById('btnComite').addEventListener('click', mostrarComite);
 document.getElementById('comiteVolver').addEventListener('click', mostrarPanel);
@@ -895,7 +952,7 @@ document.getElementById('comiteBuscar').addEventListener('input', pintarTablero)
 document.getElementById('comiteOrden').addEventListener('change', pintarTablero);
 document.getElementById('comiteAbrirComparar').addEventListener('click', () => { if (!COMITE) cargarComite().then(pintarComparar); else pintarComparar(); });
 document.getElementById('comiteAbrirTrump').addEventListener('click', pintarComiteTrump);
-document.getElementById('comiteTrump').addEventListener('click', (e) => { if (e.target.closest('.tr-volver')) verTablero(); });
+document.getElementById('comiteTrump').addEventListener('click', (e) => { if (e.target.closest('.tr-volver')) { verTablero(); return; } const st = e.target.closest('.tr-stat'); if (st && st.dataset.tipo) abrirTrumpDetalle(st.dataset.tipo); });
 document.getElementById('comiteReanalizar').addEventListener('click', async () => {
   toast('Re-analizando los números…');
   try { const r = await fetch('/api/comite/reanalizar', { method: 'POST' }); const j = await r.json(); toast(j.mensaje || 'En marcha'); setTimeout(cargarComite, 30000); } catch { toast('No se pudo re-analizar'); }
