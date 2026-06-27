@@ -68,6 +68,34 @@ const REC = {
   NNE: ['Tamaño mínimo: la más especulativa (nuclear a años de ingresos).', 'Tema enorme pero lejano; puede diluir.', 'Solo plata que no vayas a extrañar.'],
 };
 
+// Razonamiento en cadena: en qué tesis macro está, qué eslabón ocupa, qué la
+// rompería y si la narrativa ya está cara/abarrotada. precio: caliente|razonable|barata.
+const C = (tesis, eslabon, rompe, precio) => ({ tesis, eslabon, rompe, precio });
+const CADENA = {
+  VOO: C('🌎 Base diversificada', 'No es un eslabón: es dueña de toda la cadena de EE.UU. (las 500 grandes).', 'Solo una década perdida de EE.UU. — no ha pasado por mucho tiempo en la historia.', 'razonable'),
+  QQQM: C('🧠 IA — Cómputo', 'Dueña de los que mandan en el cómputo de IA: chips, nube y plataformas.', 'Que el gasto en IA se enfríe o que suban las tasas y castiguen a la tech.', 'caliente'),
+  NVDA: C('🧠 IA — Cómputo', 'El pico y pala del boom: fabrica las GPU que mueven toda la IA.', 'Si los hyperscalers recortan capex, se hacen sus propios chips, o entra China/competencia.', 'caliente'),
+  AVGO: C('🧠 IA — Cómputo', 'La red y el silicio a medida que conecta los data centers de IA.', 'Ciclo de semiconductores a la baja o que los clientes internalicen el diseño.', 'caliente'),
+  MSFT: C('🏗️ Hyperscalers (capex)', 'El que paga y cobra: construye data centers (Azure) y vende la IA (Copilot).', 'Que Azure desacelere o que monetizar la IA cueste más de lo que rinde.', 'caliente'),
+  GOOGL: C('🏗️ Hyperscalers (capex)', 'Construye su nube y su IA (Gemini), financiado por el monopolio de búsqueda.', 'Que la IA le coma la búsqueda, o que un fallo antimonopolio parta el negocio.', 'razonable'),
+  AMZN: C('🏗️ Hyperscalers (capex)', 'AWS es la columna de medio internet; el e-commerce paga las cuentas.', 'Que AWS pierda liderazgo o que el capex no devuelva márgenes.', 'razonable'),
+  META: C('🏗️ Hyperscalers (capex)', 'Gasta capex enorme en IA para vender mejor publicidad a ~3.000M de usuarios.', 'Que el metaverso/IA quemen más de lo que la publicidad devuelve.', 'razonable'),
+  LLY: C('💊 Salud / GLP-1', 'Dueña del eslabón fuerte del megamercado de obesidad (Mounjaro/Zepbound).', 'Que Novo u otra le quite mercado, o que no pueda producir suficiente.', 'caliente'),
+  V: C('🛒 Consumo defensivo', 'El peaje: cobra de cada compra del mundo, sin importar qué se compre.', 'Regulación de comisiones o que nuevas formas de pago la salten.', 'razonable'),
+  COST: C('🛒 Consumo defensivo', 'El eslabón que no se rompe en recesión: básicos con lealtad extrema.', 'Casi nada del negocio; el único riesgo es el precio que pagas por ella.', 'caliente'),
+  VXUS: C('🌎 Base diversificada', 'Toda la cadena, pero fuera de EE.UU. — tu seguro geográfico.', 'Que lo internacional siga rezagado frente a EE.UU. (lleva años).', 'barata'),
+  AVUV: C('🌎 Base diversificada', 'Las empresas chicas baratas: el eslabón que premia la paciencia.', 'Que el factor "value" rezague años, o que una recesión las castigue.', 'barata'),
+  SCHD: C('🌎 Base diversificada', 'Empresas sólidas que reparten: el eslabón estable que paga mientras esperas.', 'Que un mercado puro de tech/growth la deje atrás.', 'razonable'),
+  GLDM: C('🛡️ Refugio', 'Fuera de la cadena productiva: el seguro que sube cuando la cadena se rompe.', 'Que no haya miedo ni inflación por años — se queda dormido.', 'razonable'),
+  BND: C('🛡️ Refugio', 'El ancla: presta dinero y cobra interés; amortigua los golpes.', 'Que las tasas vuelvan a subir (su precio baja).', 'razonable'),
+  NNE: C('⚡ IA — Energía', 'El cuello de botella nuevo: alimentar los data centers (microrreactores nucleares).', 'Si el cuello se mueve (red/permisos/eficiencia) o si otra empresa gana el premio antes.', 'caliente'),
+  VRDN: C('💊 Salud / GLP-1', 'Un solo eslabón frágil: un tratamiento ocular pendiente de la FDA.', 'Un fallo clínico o regulatorio — es binaria, todo o nada.', 'caliente'),
+  RDW: C('🎲 Lotería especulativa', 'Eslabón naciente: infraestructura espacial y drones, a la sombra de SpaceX.', 'Que se quede sin contratos o sin financiamiento.', 'caliente'),
+  CRML: C('🎲 Lotería especulativa', 'El eslabón geopolítico: tierras raras fuera de China — pero aún sin producir.', 'Pre-producción: puede diluir, demorar o fallar.', 'caliente'),
+  SERV: C('🎲 Lotería especulativa', 'Robótica de delivery con respaldo NVIDIA/Uber — todavía sin ganar plata.', 'Que no escale, o que la dilución se coma al accionista.', 'caliente'),
+  RCAT: C('🎲 Lotería especulativa', 'Drones de defensa para el Army de EE.UU.: empresa chica en un nicho grande.', 'Que dependa de un contrato puntual que no llegue.', 'caliente'),
+};
+
 const PESOS = { moat: 20, valuacion: 18, riesgo: 15, macro: 12, catalizadores: 10, tecnico: 10, dividendos: 8, politicos: 7 };
 function compuesto(an) { let s = 0, w = 0; for (const k in PESOS) { const a = an[k]; if (a && typeof a.puntaje === 'number') { s += a.puntaje * PESOS[k]; w += PESOS[k]; } } return w ? Math.round(s / w) : null; }
 
@@ -82,6 +110,7 @@ function compuesto(an) { let s = 0, w = 0; for (const k in PESOS) { const a = an
     a.analistas.moat = OP[s].moat; a.analistas.macro = OP[s].macro; a.analistas.catalizadores = OP[s].catalizadores;
     a.director = OP[s].director;
     a.recomendacion = REC[s] || [];
+    if (CADENA[s]) a.cadena = CADENA[s];
     a.compuesto = compuesto(a.analistas);
     n++;
   }

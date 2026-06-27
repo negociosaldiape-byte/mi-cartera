@@ -723,6 +723,7 @@ function pintarTablero() {
     return `<button class="comite-card ${claseComite(p)}" data-sim="${esc(a.simbolo)}">
       <div class="cc-top"><span class="cc-sim">${esc(a.simbolo)}</span><span class="cc-punt" style="color:${col}">${p == null ? '—' : p}</span></div>
       <div class="cc-nombre">${esc((a.nombre || '').slice(0, 24))}</div>
+      ${a.cadena && a.cadena.tesis ? `<span class="cc-tesis">${esc(a.cadena.tesis)}</span>` : ''}
       <div class="cc-barra"><div style="width:${p == null ? 0 : p}%;background:${col}"></div></div>
       <span class="cc-vered ${claseComite(p)}">${esc(veredictoCorto(a))}</span>
     </button>`;
@@ -766,6 +767,15 @@ function abrirInforme(sim) {
   }).join('');
   const rec = a.recomendacion || [];
   const recHTML = rec.length ? `<div class="inf-rec"><div class="inf-rec-tit">✅ Mi recomendación</div><ul>${rec.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : '';
+  const PRECIO_CAD = { caliente: { e: '🔴', t: 'Caliente — narrativa de moda, ya descontada en parte' }, razonable: { e: '🟡', t: 'Precio razonable para lo que es' }, barata: { e: '🟢', t: 'Barata — calidad algo fuera de foco' } };
+  const cad = a.cadena, pr = cad ? (PRECIO_CAD[cad.precio] || PRECIO_CAD.razonable) : null;
+  const cadenaHTML = cad ? `<div class="inf-cadena">
+      <div class="inf-cadena-tit">🔗 La cadena</div>
+      <div class="cadena-fila"><span class="cadena-et">Tesis</span><span class="cadena-tesis">${esc(cad.tesis)}</span></div>
+      <div class="cadena-fila"><span class="cadena-et">Eslabón</span><span>${esc(cad.eslabon)}</span></div>
+      <div class="cadena-fila"><span class="cadena-et">Qué la rompería</span><span>${esc(cad.rompe)}</span></div>
+      <div class="cadena-fila"><span class="cadena-et">Precio</span><span class="cadena-precio cp-${esc(cad.precio || 'razonable')}">${pr.e} ${esc(pr.t)}</span></div>
+    </div>` : '';
   const aviso = (MOONSHOTS.has(sim) || (p != null && p < 40)) ? '<p class="inf-aviso">⚠️ Acción especulativa: riesgo real de caer mucho o hasta a cero. Mantenla en tamaño chico.</p>' : '';
   cont.innerHTML = `
     <button class="btn-fantasma inf-volver">← Volver al tablero</button>
@@ -778,6 +788,7 @@ function abrirInforme(sim) {
       <div class="inf-banner-der"><div class="inf-comp" style="color:${col}">${p == null ? '—' : p}</div><div class="inf-vlabel">${esc(veredictoCorto(a))}</div>${dir.confianza ? `<div class="inf-conf">confianza ${dir.confianza}%</div>` : ''}</div>
     </div>
     ${recHTML}
+    ${cadenaHTML}
     <div class="inf-cuerpo">
       <div class="inf-radar">${radarSVG(a)}<button class="btn-fantasma inf-grafico" data-sim="${esc(a.simbolo)}">📈 Ver gráfico de precio</button></div>
       <div class="inf-barras">${barras}</div>

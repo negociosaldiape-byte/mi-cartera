@@ -310,7 +310,8 @@ body {
 .cc-top { display: flex; justify-content: space-between; align-items: baseline; }
 .cc-sim { font-weight: 800; font-size: 1.05rem; color: var(--text); }
 .cc-punt { font-family: var(--fuente-display); font-weight: 800; font-size: 1.4rem; font-variant-numeric: tabular-nums; }
-.cc-nombre { color: var(--muted); font-size: 0.76rem; margin: 2px 0 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cc-nombre { color: var(--muted); font-size: 0.76rem; margin: 2px 0 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cc-tesis { display: inline-block; font-size: 0.68rem; font-weight: 700; color: var(--muted); background: rgba(255,255,255,0.06); border-radius: 999px; padding: 2px 8px; margin-bottom: 8px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cc-barra { height: 5px; background: var(--track); border-radius: 3px; overflow: hidden; margin-bottom: 9px; }
 .cc-barra > div { height: 100%; border-radius: 3px; }
 .cc-vered { display: inline-block; font-size: 0.74rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
@@ -354,6 +355,17 @@ body {
 .inf-rec-tit { font-family: var(--fuente-display); font-weight: 800; font-size: 1.02rem; color: var(--green); margin-bottom: 8px; }
 .inf-rec ul { margin: 0; padding-left: 20px; }
 .inf-rec li { color: var(--text); font-size: 0.9rem; line-height: 1.55; margin-bottom: 5px; }
+.inf-cadena { background: rgba(108,140,255,0.07); border: 1px solid rgba(108,140,255,0.22); border-radius: var(--radio-sm); padding: 14px 18px; margin-bottom: 16px; }
+.inf-cadena-tit { font-family: var(--fuente-display); font-weight: 800; font-size: 1.02rem; color: var(--accent); margin-bottom: 10px; }
+.cadena-fila { display: grid; grid-template-columns: 130px 1fr; gap: 10px; align-items: start; padding: 5px 0; border-top: 1px solid rgba(255,255,255,0.05); font-size: 0.9rem; line-height: 1.5; }
+.cadena-fila:first-of-type { border-top: 0; }
+.cadena-et { color: var(--faint); font-weight: 700; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.02em; padding-top: 1px; }
+.cadena-tesis { font-weight: 800; color: var(--text); }
+.cadena-precio { font-weight: 700; }
+.cadena-precio.cp-caliente { color: var(--red); }
+.cadena-precio.cp-razonable { color: var(--accent); }
+.cadena-precio.cp-barata { color: var(--green); }
+@media (max-width: 560px) { .cadena-fila { grid-template-columns: 1fr; gap: 2px; } .cadena-et { padding-top: 0; } }
 /* Comparar */
 .cmp-selects { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
 .cmp-selects select { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radio-sm); color: var(--text); padding: 9px 12px; font-family: inherit; flex: 1; }
