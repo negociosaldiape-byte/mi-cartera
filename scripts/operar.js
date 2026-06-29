@@ -10,14 +10,18 @@
 const U = process.env.UPSTASH_REDIS_REST_URL, T = process.env.UPSTASH_REDIS_REST_TOKEN;
 
 // ---- Parámetros de ESTA sesión -------------------------------------------
-const SESION = 's1-2026-06-27';           // marca única; no se repite si ya está aplicada
-const NUEVO_CAPITAL = 200000;             // sube poder de compra a 200k (null = no tocar)
-const VENDER_TODO = ['VRDN', 'RDW', 'CRML', 'SERV', 'RCAT', 'NNE']; // liquidar 100% de estas
+const SESION = 's2-2026-06-27';           // marca única; no se repite si ya está aplicada
+const NUEVO_CAPITAL = null;               // sube poder de compra (null = no tocar)
+const VENDER_TODO = [];                   // liquidar 100% de estas
 // Compras: monto en USD a desplegar por símbolo (se convierte a acciones al precio del día)
 const COMPRAR_USD = {
-  VOO: 20000, GOOGL: 10000, NVDA: 8000, MSFT: 8000, AMZN: 7000,
-  V: 7000, AVGO: 6000, QQQM: 6000, META: 4000, LLY: 4000,
+  OKLO: 8000, RKLB: 5000,                 // moonshots de convicción (tesis IA-energía / espacio-defensa)
 };
+// Lecturas (predicciones) a registrar para que el marcador me evalúe. plazoDias = ventana.
+const LECTURAS = [
+  { simbolo: 'OKLO', nombre: 'Oklo', direccion: 'sube', probabilidad: 58, plazoDias: 28, nota: 'Nuclear para IA bien hecho: $2.5B caja (no diluye), NRC Aurora aprobado, pipeline Meta/Switch/Equinix; objetivo criticidad jul-2026.' },
+  { simbolo: 'RKLB', nombre: 'Rocket Lab', direccion: 'sube', probabilidad: 56, plazoDias: 28, nota: 'El #2 del espacio tras SpaceX: backlog $1.8B, contrato defensa $816M, upgrades; Neutron de fondo (Q4).' },
+];
 // --------------------------------------------------------------------------
 
 async function up(cmd) { const r = await fetch(U, { method: 'POST', headers: { Authorization: 'Bearer ' + T, 'Content-Type': 'application/json' }, body: JSON.stringify(cmd) }); if (!r.ok) throw new Error('Upstash ' + r.status); return r.json(); }
@@ -43,11 +47,14 @@ function calcNet(ops) { const net = {}; for (const o of ops) { net[o.simbolo] = 
   p.sesiones = p.sesiones || [];
   if (p.sesiones.includes(SESION)) { console.log('Sesión', SESION, 'ya aplicada — no hago nada.'); return; }
 
+  p.predicciones = p.predicciones || [];
   const net = calcNet(p.operaciones);
   const fecha = new Date().toISOString();
+  const hoyISO = fecha.slice(0, 10);
   const mkId = (i) => 'op' + Date.now() + '-' + i;
   let k = 0; const nuevas = [];
   const minuta = [];
+  const precioDe = {};
 
   // 1) Ventas (liquidar 100%)
   for (const s of VENDER_TODO) {
@@ -60,10 +67,17 @@ function calcNet(ops) { const net = {}; for (const o of ops) { net[o.simbolo] = 
 
   // 2) Compras (desplegar USD)
   for (const s of Object.keys(COMPRAR_USD)) {
-    const usd = COMPRAR_USD[s]; const pr = await precio(s);
+    const usd = COMPRAR_USD[s]; const pr = await precio(s); precioDe[s] = pr;
     const cant = usd / pr;
-    nuevas.push({ id: mkId(k++), simbolo: s, tipo: 'compra', cantidad: cant, precio: pr, comision: 0, fecha, nota: 'Sesión ' + SESION + ': calidad comprada en debilidad' });
+    nuevas.push({ id: mkId(k++), simbolo: s, tipo: 'compra', cantidad: cant, precio: pr, comision: 0, fecha, nota: 'Sesión ' + SESION });
     minuta.push(['COMPRA', s, cant.toFixed(4) + ' @ ' + pr.toFixed(2) + ' = $' + usd.toFixed(2)]);
+  }
+
+  // 3) Lecturas para el marcador
+  for (let i = 0; i < LECTURAS.length; i++) {
+    const L = LECTURAS[i]; const pr = precioDe[L.simbolo] || await precio(L.simbolo);
+    p.predicciones.push({ id: 'pr' + Date.now() + '-' + i, simbolo: L.simbolo, nombre: L.nombre, autor: 'claude', direccion: L.direccion, probabilidad: L.probabilidad, plazoDias: L.plazoDias, nota: L.nota, fechaCreacion: hoyISO, precioInicial: pr, estado: 'abierta' });
+    minuta.push(['LECTURA', L.simbolo, L.direccion + ' ' + L.probabilidad + '% · ' + L.plazoDias + 'd @ ' + pr.toFixed(2)]);
   }
 
   p.operaciones.push(...nuevas);
